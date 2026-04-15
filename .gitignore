@@ -1,3 +1,5 @@
 .env
 *.csv
 data/
+.clasp.json
+creds.json
