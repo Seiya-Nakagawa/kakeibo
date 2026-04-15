@@ -37,6 +37,9 @@ function getSpreadsheet() {
  * @param {boolean} highlightCategory  true の場合 E 列（カテゴリ）を黄色に塗る
  */
 function appendTransaction(data, highlightCategory) {
+  // 先に空行を詰める
+  compactRawSheet();
+  
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAMES.RAW);
   const row = [

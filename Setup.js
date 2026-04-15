@@ -168,3 +168,28 @@ function setupMonthlySummarySheet_(ss) {
 
   console.log(SHEET_NAMES.MONTHLY_SUMMARY + ' シート作成完了。');
 }
+
+/**
+ * 生データシートの空行（中身が空の行）を削除して上に詰める（超高速フィルタ版）。
+ */
+function compactRawSheet() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.RAW);
+  if (!sheet) return;
+
+  const fullRange = sheet.getDataRange();
+  const values = fullRange.getValues();
+  if (values.length <= 1) return;
+
+  // 1行目はヘッダーなので保持しつつ、2行目以降で日付・金額・店舗のいずれかがある行だけ抽出
+  const filtered = values.filter((row, i) => {
+    if (i === 0) return true; // ヘッダーは残す
+    return row[0] || row[1] || row[2]; // どれかデータがあれば残す
+  });
+
+  if (values.length > filtered.length) {
+    sheet.clearContents();
+    sheet.getRange(1, 1, filtered.length, filtered[0].length).setValues(filtered);
+    console.log((values.length - filtered.length) + ' 行の空行を詰めました。');
+  }
+}
