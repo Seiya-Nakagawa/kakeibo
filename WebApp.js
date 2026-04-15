@@ -43,58 +43,58 @@ function doGet(e) {
 
 /**
  * POST リクエストを処理する。
- * action=delete の場合は指定行を削除する。
- * それ以外はフォームデータを生データシートに追加する。
- *
- * @param {GoogleAppsScript.Events.AppsScriptHttpRequestEvent} e
- * @returns {GoogleAppsScript.Content.TextOutput}
  */
 function doPost(e) {
-  const action = e && e.parameter && e.parameter.action;
-  const token = e && e.parameter && e.parameter.token;
+  // fetch 経由の POST はリダイレクトの問題があるため、
+  // 基本的に google.script.run を推奨しますが、互換性のために残します。
+  const res = doHttpPost_(e.parameter);
+  if (res.error) return jsonError_(res.error);
+  return jsonOk_(res);
+}
 
-  // ログイン処理（これだけは認証不要）
+/**
+ * POST 処理の共通ロジック
+ */
+function doHttpPost_(params) {
+  const action = params.action;
+  const token = params.token;
+
   if (action === 'login') {
-    const password = e.parameter.password;
+    const password = params.password;
     if (password === getWebPassword()) {
       const newToken = Utilities.getUuid();
       setSession_(newToken);
-      return jsonOk_({ token: newToken });
+      return { token: newToken };
     } else {
-      return jsonError_('パスワードが違います。');
+      return { error: 'パスワードが違います。' };
     }
   }
 
-  // それ以外の処理は認証必須
   if (!getSession_(token)) {
-    return jsonError_('セッションの期限が切れました。再ログインしてください。');
+    return { error: 'セッションの期限が切れました。再ログインしてください。' };
   }
 
   if (action === 'delete') {
-    const rowNumber = parseInt(e.parameter.rowNumber, 10);
-    if (!rowNumber || rowNumber < 2) {
-      return jsonError_('無効な行番号です。');
-    }
+    const rowNumber = parseInt(params.rowNumber, 10);
+    if (!rowNumber || rowNumber < 2) return { error: '無効な行番号です。' };
     deleteTransactionByRow(rowNumber);
-    return jsonOk_({ message: '削除しました。' });
+    return { message: '削除しました。' };
   }
 
   // 登録処理
-  const { date, amount, shop, category, source, memo } = e.parameter;
-
+  const { date, amount, shop, category, source, memo } = params;
   if (!date || !amount || !shop || !category || !source) {
-    return jsonError_('必須項目が不足しています。');
+    return { error: '必須項目が不足しています。' };
   }
 
   const parsedAmount = parseInt(amount, 10);
   if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    return jsonError_('金額が不正です。');
+    return { error: '金額が不正です。' };
   }
 
   const dedupKey = computeHash_(date + parsedAmount + shop + source);
-
   if (isDuplicateHash(dedupKey)) {
-    return jsonError_('同じ内容がすでに登録されています。');
+    return { error: '同じ内容がすでに登録されています。' };
   }
 
   appendTransaction(
@@ -111,7 +111,21 @@ function doPost(e) {
     false
   );
 
-  return jsonOk_({ message: '登録しました。' });
+  return { message: '登録しました。' };
+}
+
+// ---- google.script.run 用の API 関数 ----
+
+function apiLogin(password) {
+  return doHttpPost_({ action: 'login', password: password });
+}
+
+function apiAddEntry(params) {
+  return doHttpPost_(params);
+}
+
+function apiDeleteEntry(rowNumber, token) {
+  return doHttpPost_({ action: 'delete', rowNumber: rowNumber, token: token });
 }
 
 // ---- プライベートヘルパー ----
@@ -335,6 +349,7 @@ function buildHtml_(categories, token) {
     }
 
     async function loadRecent() {
+      // GET はリダイレクトが問題にならないため fetch を維持
       const url = scriptUrl + '?action=list&token=' + token;
       try {
         const r = await fetch(url);
@@ -351,25 +366,29 @@ function buildHtml_(categories, token) {
           tbody.appendChild(tr);
         });
         document.querySelectorAll('.del-btn').forEach((btn) => {
-          btn.addEventListener('click', () => deleteRow(btn.dataset.row));
+          btn.addEventListener('click', (e) => deleteRow(e.target.dataset.row));
         });
       } catch (e) {}
     }
 
-    async function deleteRow(rowNumber) {
+    function deleteRow(rowNumber) {
       if (!confirm('この行を削除しますか？')) return;
-      const params = new URLSearchParams({ action: 'delete', rowNumber, token });
-      try {
-        const r = await fetch(scriptUrl, { method: 'POST', body: params });
-        const res = await r.json();
-        showMessage(res.message || '削除しました。', !res.error);
-        loadRecent();
-      } catch (e) {
-        showMessage('削除に失敗しました。', false);
-      }
+      const btn = event.target;
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          showMessage(res.message || '削除しました。', !res.error);
+          loadRecent();
+        })
+        .withFailureHandler(() => {
+          showMessage('削除に失敗しました。', false);
+          btn.disabled = false;
+        })
+        .apiDeleteEntry(rowNumber, token);
     }
 
-    document.getElementById('entryForm').addEventListener('submit', async (ev) => {
+    document.getElementById('entryForm').addEventListener('submit', (ev) => {
       ev.preventDefault();
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
@@ -553,39 +572,34 @@ function buildLoginHtml_() {
     const submitBtn = document.getElementById('submitBtn');
     const messageEl = document.getElementById('message');
 
-    loginForm.addEventListener('submit', async (e) => {
+    loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
       
       messageEl.textContent = '';
       submitBtn.classList.add('loading');
       submitBtn.textContent = '認証中...';
 
-      const formData = new FormData(loginForm);
-      const params = new URLSearchParams(formData);
-      params.append('action', 'login');
+      const password = document.getElementById('password').value;
 
-      try {
-        const response = await fetch(window.location.href, {
-          method: 'POST',
-          body: params
-        });
-        const result = await response.json();
-
-        if (result.token) {
-          localStorage.setItem('kakeibo_token', result.token);
-          // トークン付きでリロード
-          const url = new URL(window.location.href);
-          url.searchParams.set('token', result.token);
-          window.location.href = url.toString();
-        } else {
-          messageEl.textContent = result.error || 'ログインに失敗しました。';
-        }
-      } catch (error) {
-        messageEl.textContent = '通信エラーが発生しました。';
-      } finally {
-        submitBtn.classList.remove('loading');
-        submitBtn.textContent = 'ログイン';
-      }
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result.token) {
+            localStorage.setItem('kakeibo_token', result.token);
+            const url = new URL(window.location.href);
+            url.searchParams.set('token', result.token);
+            window.location.href = url.toString();
+          } else {
+            messageEl.textContent = result.error || 'ログインに失敗しました。';
+          }
+          submitBtn.classList.remove('loading');
+          submitBtn.textContent = 'ログイン';
+        })
+        .withFailureHandler(() => {
+          messageEl.textContent = '通信エラーが発生しました。';
+          submitBtn.classList.remove('loading');
+          submitBtn.textContent = 'ログイン';
+        })
+        .apiLogin(password);
     });
 
     // 画面中央に遷移させるエフェクト
