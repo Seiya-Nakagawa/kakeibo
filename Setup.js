@@ -157,7 +157,7 @@ function setupMonthlySummarySheet_(ss) {
       ['通信', 0, true],
       ['医療・保険', 0, true],
       ['エンタメ', 0, true],
-      ['クルマ', 0, true],
+      ['旅行', 0, true],
       ['住宅', 0, true],
       ['サブスクリプション', 0, true],
       ['その他', 0, true],

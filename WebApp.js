@@ -113,6 +113,9 @@ function buildHtml_(categories) {
         <label>🏷️ カテゴリ</label>
         <select name="category" required>${categoryOptions}</select>
         
+        <label>📝 備考</label>
+        <input type="text" name="memo" placeholder="メモ（任意）">
+
         <label>💳 支払方法</label>
         <select name="source" required>
           <option value="現金">現金</option>
@@ -148,7 +151,8 @@ function buildHtml_(categories) {
         amount: e.target.amount.value,
         shop: e.target.shop.value,
         category: e.target.category.value,
-        source: e.target.source.value
+        source: e.target.source.value,
+        memo: e.target.memo.value
       };
 
       google.script.run.withSuccessHandler(function(res) {
