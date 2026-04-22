@@ -172,6 +172,30 @@ function getRecentTransactions(n) {
 }
 
 /**
+ * 生データシートの空行（中身が空の行）を削除して上に詰める。
+ */
+function compactRawSheet() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.RAW);
+  if (!sheet) return;
+
+  const fullRange = sheet.getDataRange();
+  const values = fullRange.getValues();
+  if (values.length <= 1) return;
+
+  const filtered = values.filter((row, i) => {
+    if (i === 0) return true;
+    return row[0] || row[1] || row[2];
+  });
+
+  if (values.length > filtered.length) {
+    sheet.clearContents();
+    sheet.getRange(1, 1, filtered.length, filtered[0].length).setValues(filtered);
+    console.log((values.length - filtered.length) + ' 行の空行を詰めました。');
+  }
+}
+
+/**
  * 指定した行番号の行を生データシートから削除する。
  *
  * @param {number} rowNumber  1始まりの行番号
