@@ -62,18 +62,17 @@ graph TD
 - E列（カテゴリ）のセルは、Gemini API で判定した場合に背景色を黄色（`#FFF2CC`）で塗る
 - ユーザーが手動修正した場合は背景色をクリア（未実装フェーズではユーザー手動でクリア）
 
-### 2.2. カテゴリマスタシート
+### 2.2. 月次集計シートのマスターデータ（A〜C列）
 
-シート名: `カテゴリマスタ`
+カテゴリマスタは独立したシートではなく、月次集計シートの A〜C 列で管理する。
 
 | 列 | ヘッダー | 説明 |
 | -- | -------- | ---- |
 | A | カテゴリ名 | 一意のカテゴリ名（例: 食費、日用雑貨、交通） |
 | B | 月次予算 | カテゴリごとの月次予算（円）。0 は未設定 |
 | C | 集計対象 | TRUE: 月次集計に含める / FALSE: 集計対象外（チェックボックス） |
-| D | 備考 | 任意メモ |
 
-**初期カテゴリ案**:
+**初期カテゴリ**:
 
 | カテゴリ名 | 集計対象 |
 | ---------- | -------- |
@@ -83,7 +82,7 @@ graph TD
 | 通信 | TRUE |
 | 医療・保険 | TRUE |
 | エンタメ | TRUE |
-| クルマ | TRUE |
+| 旅行 | TRUE |
 | 住宅 | TRUE |
 | サブスクリプション | TRUE |
 | その他 | TRUE |
@@ -98,7 +97,7 @@ graph TD
 | 列 | ヘッダー | 説明 |
 | -- | -------- | ---- |
 | A | 店舗名キーワード | 部分一致で判定するキーワード |
-| B | カテゴリ名 | カテゴリマスタの値を参照 |
+| B | カテゴリ名 | 月次集計シートA列の値を参照 |
 
 - 上から順に評価し、最初にヒットしたカテゴリを採用する
 - 大文字小文字・全半角を正規化してから比較する
@@ -111,7 +110,7 @@ graph TD
 | -- | -------- | ---- |
 | A | 店舗名 / 支払先 | 例: 住宅ローン |
 | B | 金額 | 固定金額（円） |
-| C | カテゴリ名 | カテゴリマスタの値を参照 |
+| C | カテゴリ名 | 月次集計シートA列の値を参照 |
 | D | 決済手段 | 例: 口座引落 |
 | E | 開始月 | 適用開始月（YYYY/MM 形式の日付。空欄 = 常時適用） |
 | F | メモ | 任意 |
@@ -125,16 +124,19 @@ graph TD
 
 `refreshMonthlySummary()` によって自動生成される。`runAutoImport()` 実行後に自動更新される。
 
+**A〜C列はカテゴリマスタとして機能する**（ユーザーが直接編集する）。D列以降は数式で自動生成。
+
 | 列 | 内容 |
 | -- | ---- |
-| A | カテゴリ名（集計対象=TRUE のみ） |
-| B | 月次予算（カテゴリマスタから参照） |
-| C | 当月実績（変動費 + 固定費） |
-| D | 差額（予算 − 実績、マイナス赤字表示） |
-| E〜I | 前月〜5ヶ月前の実績（変動費 + 固定費） |
+| A | カテゴリ名（ユーザー管理） |
+| B | 月次予算（ユーザー管理） |
+| C | 集計対象（TRUE/FALSE チェックボックス、ユーザー管理） |
+| D | 当月実績（変動費 + 固定費、数式自動生成） |
+| E | 差額（予算 − 実績、マイナス赤字表示、数式自動生成） |
+| F〜J | 前月〜5ヶ月前の実績（変動費 + 固定費、数式自動生成） |
 
 - 実績 = `SUMIFS(生データ)` + `SUMIFS(固定費マスタ)` の合算
-- カテゴリマスタで「集計対象=FALSE」のカテゴリ（例: 対象外）は行に含まれない
+- 集計対象=FALSE のカテゴリ（例: 対象外）は実績欄が空になり合計にも含まれない
 - 最終行に合計行を表示する（予算合計・実績合計・差額合計）
 - 差額がマイナス（予算超過）の場合は赤字で表示する
 
@@ -142,13 +144,12 @@ graph TD
 
 | ファイル名 | 役割 | 主要な関数 |
 | ---------- | ---- | ---------- |
-| `Code.js` | エントリーポイント | `runAutoImport()`, `runFixedExpenses()` |
+| `Code.js` | エントリーポイント | `runAutoImport()` |
 | `Config.js` | 設定・定数 | `MAIL_FILTERS`, `COL`, `CAT_COL` など |
 | `Parsers.js` | メールパース | `rakutenPay()`, `rakutenPayOnline()`, `rakutenCard()` |
 | `CategoryHandler.js` | カテゴリ判定 | `getCategory()`, `callGeminiApi()`, `extractShopKeyword()` |
-| `SheetClient.js` | スプレッドシート操作 | `appendTransaction()`, `getCategories()`, `refreshMonthlySummary()` |
-| `WebApp.js` | Web アプリ | `doGet()`, `doPost()` |
-| `Setup.js` | 初期セットアップ | `setupSheets()`, `setupTriggers()` |
+| `SheetClient.js` | スプレッドシート操作 | `appendTransaction()`, `getCategories()`, `refreshMonthlySummary()`, `compactRawSheet()` |
+| `WebApp.js` | Web アプリ | `doGet()`, `apiAddEntry()` |
 | `appsscript.json` | マニフェスト | スコープ設定 |
 
 ## 4. 機能設計
@@ -229,26 +230,7 @@ function getCategory(shopName) {
   - キー = `SHA256(日付 + 金額 + 店舗名 + 決済手段)`
   - GAS 標準の `Utilities.computeDigest` で生成する
 
-### 4.4. 固定費自動登録フロー
-
-```mermaid
-sequenceDiagram
-    participant Trigger as 時間トリガー（月次）
-    participant Code as Code.js
-    participant Sheet as SheetClient.js
-
-    Trigger->>Code: runFixedExpenses()
-    Code->>Sheet: 固定費マスタシートを全行取得
-    loop 各固定費
-        Code->>Code: 今月の登録日付を生成
-        Code->>Sheet: isDuplicate(hash)
-        alt 未登録
-            Code->>Sheet: appendTransaction(data, "fixed")
-        end
-    end
-```
-
-### 4.5. Web アプリ画面設計
+### 4.4. Web アプリ画面設計
 
 **URL**: GAS Web アプリとして公開（アクセス権: 自分のみ）
 
@@ -288,7 +270,7 @@ sequenceDiagram
 | ---------- | ---- | ---- | ---------- |
 | 自動取込 | `runAutoImport()` | 時間主導型 | 毎日 AM 7:00 |
 
-`Setup.js` の `setupTriggers()` を一度実行することでトリガーを設定する。
+トリガーは GAS エディタの「トリガー」メニューから手動で設定する。
 固定費は月次トリガー不要。固定費マスタを直接参照するため常に最新状態が反映される。
 
 ## 6. メールフィルタ設定
@@ -314,9 +296,8 @@ sequenceDiagram
 
 ## 8. セットアップ手順
 
-`Setup.js` の `setupSheets()` を一度実行すると、以下を自動作成する。
-
-1. 各シートの作成とヘッダー行の設定
-2. カテゴリマスタの初期データ投入
-3. 生データシートの H 列を非表示化
-4. `setupTriggers()` でトリガーを設定
+1. スプレッドシートに以下のシートを手動で作成する: `生データ`、`店舗ルール`、`固定費マスタ`、`月次集計`
+2. 各シートのヘッダー行を設定する（カラム構成は本ドキュメントの各シート定義を参照）
+3. 月次集計シートの A〜C 列にカテゴリマスタを入力する
+4. GAS エディタの「トリガー」メニューで `runAutoImport` を時間主導型・毎日 AM 7:00 に設定する
+5. スクリプトプロパティに `GEMINI_API_KEY` を設定する

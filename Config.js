@@ -21,6 +21,11 @@ function getGeminiApiKey() {
   return key;
 }
 
+/** Web アプリ用パスワードをスクリプトプロパティから取得する */
+function getWebPassword() {
+  return PropertiesService.getScriptProperties().getProperty('WEB_PASSWORD') || 'admin'; // デフォルトは admin
+}
+
 /**
  * Gmail ラベル名定数
  * Gmail フィルタで LABEL_UNPROCESSED を決済通知メールに自動付与しておく。

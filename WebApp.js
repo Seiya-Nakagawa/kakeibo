@@ -1,100 +1,21 @@
 /**
- * WebApp.js - Web アプリ（手動入力画面）
- *
- * エンドポイント:
- *   doGet()                     : HTML 画面を返す（カテゴリ一覧を埋め込む）
- *   doGet(?action=list)         : 直近10件を JSON で返す
- *   doPost()                    : フォーム入力を生データシートに登録する
- *   doPost(?action=delete)      : 指定行を削除する
- */
-
-/**
- * GET リクエストを処理する。
- * action=list の場合は直近10件を JSON で返す。
- * それ以外は手動入力 HTML 画面を返す。
- *
- * @param {GoogleAppsScript.Events.AppsScriptHttpRequestEvent} e
- * @returns {GoogleAppsScript.HTML.HtmlOutput | GoogleAppsScript.Content.TextOutput}
+ * Web アプリのエントリポイント。
  */
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
 
   if (action === 'list') {
     const rows = getRecentTransactions(10);
-    return ContentService.createTextOutput(JSON.stringify(rows)).setMimeType(
-      ContentService.MimeType.JSON
-    );
+    return jsonOk_(rows);
   }
 
   const categories = getCategories();
   const html = buildHtml_(categories);
-  return HtmlService.createHtmlOutput(html)
-    .setTitle('家計簿 - 手動入力')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return HtmlService.createHtmlOutput(html);
 }
-
-/**
- * POST リクエストを処理する。
- * action=delete の場合は指定行を削除する。
- * それ以外はフォームデータを生データシートに追加する。
- *
- * @param {GoogleAppsScript.Events.AppsScriptHttpRequestEvent} e
- * @returns {GoogleAppsScript.Content.TextOutput}
- */
-function doPost(e) {
-  const action = e && e.parameter && e.parameter.action;
-
-  if (action === 'delete') {
-    const rowNumber = parseInt(e.parameter.rowNumber, 10);
-    if (!rowNumber || rowNumber < 2) {
-      return jsonError_('無効な行番号です。');
-    }
-    deleteTransactionByRow(rowNumber);
-    return jsonOk_({ message: '削除しました。' });
-  }
-
-  // 登録処理
-  const { date, amount, shop, category, source, memo } = e.parameter;
-
-  if (!date || !amount || !shop || !category || !source) {
-    return jsonError_('必須項目が不足しています。');
-  }
-
-  const parsedAmount = parseInt(amount, 10);
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    return jsonError_('金額が不正です。');
-  }
-
-  const dedupKey = computeHash_(date + parsedAmount + shop + source);
-
-  if (isDuplicateHash(dedupKey)) {
-    return jsonError_('同じ内容がすでに登録されています。');
-  }
-
-  appendTransaction(
-    {
-      date,
-      amount: parsedAmount,
-      shop,
-      source,
-      category,
-      memo: memo || '',
-      method: 'manual',
-      dedupKey,
-    },
-    false
-  );
-
-  return jsonOk_({ message: '登録しました。' });
-}
-
-// ---- プライベートヘルパー ----
 
 /**
  * 手動入力画面の HTML 文字列を生成する。
- *
- * @param {string[]} categories  カテゴリ名の配列
- * @returns {string}
  */
 function buildHtml_(categories) {
   const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
@@ -106,188 +27,192 @@ function buildHtml_(categories) {
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>家計簿 - 手動入力</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>家計簿</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 16px; background: #f5f5f5; }
-    h1 { font-size: 1.2rem; border-bottom: 2px solid #333; padding-bottom: 8px; }
-    section { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 4px; }
-    input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; margin-bottom: 12px; }
-    .amount-wrap { display: flex; align-items: center; gap: 8px; }
-    .amount-wrap input { margin-bottom: 0; }
-    .amount-unit { white-space: nowrap; }
-    button { background: #1a73e8; color: #fff; border: none; border-radius: 4px; padding: 10px 24px; font-size: 1rem; cursor: pointer; }
-    button:hover { background: #1558b0; }
-    #message { margin-top: 8px; font-size: 0.9rem; }
-    .ok  { color: green; }
-    .err { color: red; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #eee; }
-    th { background: #f0f0f0; }
-    .del-btn { background: #e53935; color: #fff; border: none; border-radius: 3px; padding: 2px 8px; cursor: pointer; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #1e293b;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 20px; /* 全体の基準をさらにアップ */
+    }
+    .container {
+      width: 100%;
+      padding: 0 16px 40px;
+      box-sizing: border-box;
+    }
+    .app-header {
+      padding: 30px 0 10px;
+      text-align: center;
+    }
+    .app-header h1 { font-size: 2.2rem; margin: 0; }
+    
+    .form-container {
+      width: 100%;
+    }
+    
+    label {
+      display: block;
+      font-size: 1.5rem; /* 超特大 */
+      font-weight: 900;
+      margin: 30px 0 10px;
+      color: #334155;
+    }
+    input, select {
+      width: 100%;
+      height: 80px; /* 究極の高さ */
+      padding: 0 20px;
+      border: 3px solid #e2e8f0;
+      border-radius: 18px;
+      font-size: 24px; /* 入力文字も巨大に */
+      box-sizing: border-box;
+      background: #fff;
+      -webkit-appearance: none;
+    }
+    input:focus, select:focus { border-color: #2563eb; outline: none; }
+    
+    .btn {
+      width: 100%;
+      height: 90px; /* 特大ボタン */
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-top: 50px;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(37,99,235,0.3);
+    }
+    .btn:active { transform: scale(0.96); opacity: 0.9; }
+    
+    #message { margin-top: 30px; padding: 20px; border-radius: 12px; display: none; text-align: center; font-weight: 800; font-size: 1.2rem; }
   </style>
 </head>
 <body>
-  <h1>家計簿 - 手動入力</h1>
+  <div class="container">
+    <div class="app-header">
+      <h1>💰 家計簿入力</h1>
+    </div>
+    
+    <div class="form-container">
+      <form id="entryForm">
+        <label>📅 日付</label>
+        <input type="date" name="date" value="${today}" required>
+        
+        <label>💴 金額</label>
+        <input type="number" name="amount" placeholder="0" inputmode="numeric" required>
+        
+        <label>🛒 店舗・内容</label>
+        <input type="text" name="shop" placeholder="どこで？" required>
+        
+        <label>🏷️ カテゴリ</label>
+        <select name="category" required>${categoryOptions}</select>
+        
+        <label>📝 備考</label>
+        <input type="text" name="memo" placeholder="メモ（任意）">
 
-  <section>
-    <form id="entryForm">
-      <label>日付</label>
-      <input type="date" name="date" value="${today}" required>
-
-      <label>金額</label>
-      <div class="amount-wrap">
-        <input type="number" name="amount" min="1" placeholder="0" required>
-        <span class="amount-unit">円</span>
-      </div>
-
-      <label>店舗名</label>
-      <input type="text" name="shop" placeholder="例: セブンイレブン 渋谷店" required>
-
-      <label>カテゴリ</label>
-      <select name="category" required>
-        <option value="">-- 選択 --</option>
-        ${categoryOptions}
-      </select>
-
-      <label>決済手段</label>
-      <select name="source" required>
-        <option value="現金">現金</option>
-        <option value="楽天ペイ">楽天ペイ</option>
-        <option value="楽天カード">楽天カード</option>
-        <option value="口座引落">口座引落</option>
-        <option value="その他">その他</option>
-      </select>
-
-      <label>メモ（任意）</label>
-      <input type="text" name="memo" placeholder="">
-
-      <button type="submit">登録する</button>
-      <div id="message"></div>
-    </form>
-  </section>
-
-  <section>
-    <h2 style="font-size:1rem; margin-top:0;">直近の登録（10件）</h2>
-    <table id="recentTable">
-      <thead>
-        <tr><th>日付</th><th>金額</th><th>店舗名</th><th>カテゴリ</th><th>削除</th></tr>
-      </thead>
-      <tbody id="recentBody"></tbody>
-    </table>
-  </section>
+        <label>💳 支払方法</label>
+        <select name="source" required>
+          <option value="現金">現金</option>
+          <option value="楽天ペイ">楽天ペイ</option>
+          <option value="楽天カード">楽天カード</option>
+          <option value="口座引落">口座引落</option>
+        </select>
+        
+        <button type="submit" class="btn" id="submitBtn">登録する</button>
+        <div id="message"></div>
+      </form>
+    </div>
+  </div>
 
   <script>
-    const scriptUrl = window.location.href.split('?')[0];
-
-    function showMessage(text, isOk) {
-      const el = document.getElementById('message');
-      el.textContent = text;
-      el.className = isOk ? 'ok' : 'err';
+    function showMessage(text, color) {
+      const msg = document.getElementById('message');
+      msg.textContent = text;
+      msg.style.display = 'block';
+      msg.style.background = color === 'green' ? '#ecfdf5' : '#fef2f2';
+      msg.style.color = color === 'green' ? '#065f46' : '#991b1b';
+      setTimeout(() => { msg.style.display = 'none'; }, 5000);
     }
 
-    function loadRecent() {
-      fetch(scriptUrl + '?action=list')
-        .then((r) => r.json())
-        .then((rows) => {
-          const tbody = document.getElementById('recentBody');
-          tbody.innerHTML = '';
-          rows.forEach((row) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML =
-              '<td>' + (row.date instanceof Object ? row.date : row.date) + '</td>' +
-              '<td style="text-align:right">' + Number(row.amount).toLocaleString() + '</td>' +
-              '<td>' + escapeHtml(row.shop) + '</td>' +
-              '<td>' + escapeHtml(row.category) + '</td>' +
-              '<td><button class="del-btn" data-row="' + row.rowNumber + '">×</button></td>';
-            tbody.appendChild(tr);
-          });
-          document.querySelectorAll('.del-btn').forEach((btn) => {
-            btn.addEventListener('click', () => deleteRow(btn.dataset.row));
-          });
-        })
-        .catch(() => {});
-    }
+    document.getElementById('entryForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '登録中...';
 
-    function deleteRow(rowNumber) {
-      if (!confirm('この行を削除しますか？')) return;
-      const params = new URLSearchParams({ action: 'delete', rowNumber });
-      fetch(scriptUrl, { method: 'POST', body: params })
-        .then((r) => r.json())
-        .then((res) => {
-          showMessage(res.message || '削除しました。', !res.error);
-          loadRecent();
-        })
-        .catch(() => showMessage('削除に失敗しました。', false));
-    }
+      const data = {
+        date: e.target.date.value,
+        amount: e.target.amount.value,
+        shop: e.target.shop.value,
+        category: e.target.category.value,
+        source: e.target.source.value,
+        memo: e.target.memo.value
+      };
 
-    document.getElementById('entryForm').addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      const data = new FormData(ev.target);
-      const params = new URLSearchParams(data);
-      fetch(scriptUrl, { method: 'POST', body: params })
-        .then((r) => r.json())
-        .then((res) => {
-          showMessage(res.message || (res.error ? res.error : '登録しました。'), !res.error);
-          if (!res.error) {
-            ev.target.reset();
-            document.querySelector('[name=date]').value = '${today}';
-            loadRecent();
-          }
-        })
-        .catch(() => showMessage('登録に失敗しました。', false));
+      google.script.run.withSuccessHandler(function(res) {
+        if (res.success) {
+          showMessage('登録しました ✅', 'green');
+          e.target.reset();
+          document.querySelector('[name=date]').value = '${today}';
+        } else {
+          showMessage('エラー: ' + res.error, 'red');
+        }
+        btn.disabled = false;
+        btn.textContent = '登録する';
+      }).withFailureHandler(function() {
+        showMessage('通信エラーが発生しました', 'red');
+        btn.disabled = false;
+        btn.textContent = '登録する';
+      }).apiAddEntry(data);
     });
-
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
-    loadRecent();
   </script>
 </body>
 </html>`;
 }
 
 /**
- * 成功レスポンスの JSON を返す。
- *
- * @param {Object} data
- * @returns {GoogleAppsScript.Content.TextOutput}
+ * 支出情報を追加する API。
  */
-function jsonOk_(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(
-    ContentService.MimeType.JSON
-  );
-}
-
-/**
- * エラーレスポンスの JSON を返す。
- *
- * @param {string} message
- * @returns {GoogleAppsScript.Content.TextOutput}
- */
-function jsonError_(message) {
-  return ContentService.createTextOutput(
-    JSON.stringify({ error: message })
-  ).setMimeType(ContentService.MimeType.JSON);
+function apiAddEntry(params) {
+  try {
+    // 重複チェック用のキーを生成
+    const dedupKey = computeHash_(params.date + params.amount + params.shop + 'manual');
+    
+    // スプレッドシートへ追加
+    appendTransaction({
+      date: params.date,
+      amount: Number(params.amount),
+      shop: params.shop,
+      source: params.source,
+      category: params.category,
+      memo: params.memo || '',
+      method: 'manual',
+      dedupKey: dedupKey
+    });
+    
+    // 集計を更新
+    refreshMonthlySummary();
+    
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
 }
 
 /**
  * HTML 特殊文字をエスケープする。
- *
- * @param {string} str
- * @returns {string}
  */
 function escapeHtml_(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function jsonOk_(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
