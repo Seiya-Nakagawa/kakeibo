@@ -135,6 +135,8 @@ function detectFilter_(message) {
     if (filter.subject && !subject.includes(filter.subject)) continue;
     return filter;
   }
+
+  console.warn('フィルタ未ヒット: \n  from: ' + from + '\n  subject: ' + subject);
   return null;
 }
 
