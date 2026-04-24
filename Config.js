@@ -48,13 +48,13 @@ const GMAIL_LABELS = {
 const MAIL_FILTERS = [
   {
     from: 'no-reply@pay.rakuten.co.jp',
-    subject: '楽天ペイアプリご利用内容確認メール',
+    subject: '楽天ペイアプリご利用内容',
     parser: 'rakutenPay',
     source: '楽天ペイ',
   },
   {
-    from: 'order@checkout.rakuten.co.jp',
-    subject: '楽天ペイ 注文受付',
+    from: 'payment@checkout.rakuten.co.jp',
+    subject: '楽天ペイ（オンライン決済）',
     parser: 'rakutenPayOnline',
     source: '楽天ペイ(オンライン)',
   },
