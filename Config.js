@@ -59,6 +59,12 @@ const MAIL_FILTERS = [
     source: '楽天ペイ(オンライン)',
   },
   {
+    from: 'order@checkout.rakuten.co.jp',
+    subject: '楽天ペイ 注文受付',
+    parser: 'rakutenPayOnline',
+    source: '楽天ペイ(オンライン)',
+  },
+  {
     from: 'info@mail.rakuten-card.co.jp',
     subject: 'カード利用のお知らせ',
     parser: 'rakutenCard',
