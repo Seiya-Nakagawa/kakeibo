@@ -281,6 +281,7 @@ function getCategory(shopName) {
 | -------- | ---------------------------------- | -------- |
 | 楽天ペイ（アプリ） | `from:rakutengroup@mail.rakuten.com subject:楽天ペイアプリご利用内容` | `Parsers.rakutenPay()` |
 | 楽天ペイ（オンライン） | `from:payment@checkout.rakuten.co.jp subject:楽天ペイ（オンライン決済）` | `Parsers.rakutenPayOnline()` |
+| 楽天ペイ（注文受付） | `from:order@checkout.rakuten.co.jp subject:楽天ペイ 注文受付` | `Parsers.rakutenPayOnline()` |
 | 楽天カード | `from:info@mail.rakuten-card.co.jp subject:楽天カード利用のお知らせ` | `Parsers.rakutenCard()` |
 
 ## 7. セキュリティ設計

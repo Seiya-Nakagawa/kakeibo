@@ -53,23 +53,34 @@ const Parsers = {
   rakutenPayOnline(body) {
     const text = stripHtml_(body);
 
-    const shopMatch = text.match(/提携サイト「([^」]+)」/);
-    const dateMatch = text.match(/ご注文日[：:]\s*(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/);
+    // ショップ名: 「提携サイト「...」」または「ショップ名 ： ...」
+    const shopMatch = text.match(/提携サイト「([^」]+)」/) || text.match(/ショップ名\s*[：:]\s*([^\r\n]+)/);
+    const shop = shopMatch ? (shopMatch[1] || shopMatch[2]).trim() : null;
 
-    const shop = shopMatch ? shopMatch[1].trim() : null;
+    // 日付: 「ご注文日： ...」「注文日時： ...」「[日時] ...」など
+    const dateMatch = text.match(/(?:ご注文日|注文日時|利用日時)[：:]\s*(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/) ||
+                    text.match(/\[日時\]\s*(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/);
     const date = dateMatch
       ? dateMatch[1].replace(/\//g, '-')
       : null;
 
-    // お支払い金額 → 注文合計 → 明細合計の順で取得
+    // お支払い金額 → 注文合計 → 合計 → 明細合計の順で取得
     let amount = null;
-    const payAmountMatch = text.match(/お支払い金額[：:]\s*([\d,]+)円/);
-    const totalAmountMatch = text.match(/注文合計\s*([\d,]+)円/);
-    if (payAmountMatch) {
-      amount = parseInt(payAmountMatch[1].replace(/,/g, ''), 10);
-    } else if (totalAmountMatch) {
-      amount = parseInt(totalAmountMatch[1].replace(/,/g, ''), 10);
-    } else {
+    const amountPatterns = [
+      /お支払い金額[：:]\s*([\d,]+)円/,
+      /注文合計\s*([\d,]+)円/,
+      /合計\s*([\d,]+)円/
+    ];
+
+    for (const pattern of amountPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        amount = parseInt(match[1].replace(/,/g, ''), 10);
+        break;
+      }
+    }
+
+    if (!amount) {
       // 明細行の「＝ X,XXX円」を合計（例: 2,000円 × 1個 ＝ 2,000円）
       const lineMatches = text.match(/＝\s*([\d,]+)円/g);
       if (lineMatches) {
