@@ -101,7 +101,7 @@ function buildHtml_(categories) {
     
     <div class="form-container">
       <form id="entryForm">
-        <label>📅 日付</label>
+        <label>📅 日付 <span id="dayOfWeek" style="font-weight: normal; font-size: 1.2rem; margin-left: 10px; color: #64748b;"></span></label>
         <input type="date" name="date" value="${today}" required>
         
         <label>💴 金額</label>
@@ -140,6 +140,24 @@ function buildHtml_(categories) {
       setTimeout(() => { msg.style.display = 'none'; }, 5000);
     }
 
+    const dayOfWeekSpan = document.getElementById('dayOfWeek');
+    const dateInput = document.querySelector('[name=date]');
+    const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+
+    function updateDayOfWeek() {
+      const dateVal = dateInput.value;
+      if (dateVal) {
+        const date = new Date(dateVal);
+        const day = weekDays[date.getDay()];
+        dayOfWeekSpan.textContent = '(' + day + ')';
+      } else {
+        dayOfWeekSpan.textContent = '';
+      }
+    }
+
+    dateInput.addEventListener('change', updateDayOfWeek);
+    updateDayOfWeek(); // 初期表示
+
     document.getElementById('entryForm').addEventListener('submit', function(e) {
       e.preventDefault();
       const btn = document.getElementById('submitBtn');
@@ -160,6 +178,7 @@ function buildHtml_(categories) {
           showMessage('登録しました ✅', 'green');
           e.target.reset();
           document.querySelector('[name=date]').value = '${today}';
+          updateDayOfWeek();
         } else {
           showMessage('エラー: ' + res.error, 'red');
         }
