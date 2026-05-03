@@ -57,18 +57,19 @@ function buildHtml_(categories) {
     
     label {
       display: block;
-      font-size: 1.5rem; /* 超特大 */
+      font-size: 2.2rem; /* さらに大きく */
       font-weight: 900;
-      margin: 30px 0 10px;
+      margin: 40px 0 15px;
       color: #334155;
     }
     input, select {
       width: 100%;
-      height: 80px; /* 究極の高さ */
-      padding: 0 20px;
-      border: 3px solid #e2e8f0;
-      border-radius: 18px;
-      font-size: 24px; /* 入力文字も巨大に */
+      height: 120px; /* 極限の高さ */
+      padding: 0 30px;
+      border: 4px solid #e2e8f0;
+      border-radius: 24px;
+      font-size: 42px; /* 入力文字を極限まで巨大に */
+      font-weight: bold;
       box-sizing: border-box;
       background: #fff;
       -webkit-appearance: none;
@@ -91,9 +92,133 @@ function buildHtml_(categories) {
     .btn:active { transform: scale(0.96); opacity: 0.9; }
     
     #message { margin-top: 30px; padding: 20px; border-radius: 12px; display: none; text-align: center; font-weight: 800; font-size: 1.2rem; }
+
+    /* 電卓スタイル */
+    /* 電卓起動ボタン（入力欄と同サイズ） */
+    .calc-btn-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 120px;
+      background: #f1f5f9;
+      border: 4px solid #cbd5e1;
+      border-radius: 24px;
+      font-size: 42px; /* 入力欄(42px)と合わせる */
+      font-weight: bold;
+      cursor: pointer;
+      color: #334155;
+    }
+    .calc-btn-trigger:active { background: #e2e8f0; }
+    .calc-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .calculator {
+      background: #fff;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      border-radius: 0;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+    .calc-display {
+      width: 100%;
+      height: 140px; /* さらに高く */
+      background: #f8fafc;
+      border-radius: 18px;
+      margin-bottom: 30px;
+      text-align: right;
+      padding: 20px;
+      font-size: 6rem; /* さらに巨大化 */
+      font-weight: bold;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      overflow-x: auto; /* 長い計算式でも対応 */
+    }
+    .calc-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+    }
+    .calc-key {
+      height: 100%;
+      min-height: 70px;
+      border: none;
+      border-radius: 20px;
+      font-size: 3.5rem; /* さらに大きく */
+      font-weight: bold;
+      background: #f1f5f9;
+      color: #334155;
+      cursor: pointer;
+    }
+    .calc-key.op { background: #e2e8f0; color: #1e293b; font-size: 4rem; }
+    .calc-key.action { background: #2563eb; color: #fff; grid-column: span 2; font-size: 2.8rem; }
+    .calc-key.clear { background: #fef2f2; color: #991b1b; }
+    .calc-key:active { background: #cbd5e1; }
+    
+    /* 日付入力欄内の曜日表示用 */
+    .date-wrapper {
+      position: relative;
+      width: 100%;
+    }
+    #dayOfWeek {
+      position: absolute;
+      right: 50px; /* カレンダーアイコンを避ける */
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none; /* 下の入力を邪魔しない */
+      font-weight: bold;
+      font-size: 1.4rem;
+    }
+    input[type="date"] {
+      padding-right: 100px; /* 曜日分の余白 */
+    }
   </style>
 </head>
 <body>
+  <div class="calc-overlay" id="calcOverlay">
+    <div class="calculator">
+      <div class="calc-display" id="calcDisplay">0</div>
+      <div class="calc-grid">
+        <button type="button" class="calc-key clear" onclick="calcAction('C')">C</button>
+        <button type="button" class="calc-key op" onclick="calcAction('/')">÷</button>
+        <button type="button" class="calc-key op" onclick="calcAction('*')">×</button>
+        <button type="button" class="calc-key op" onclick="calcAction('back')">⌫</button>
+        
+        <button type="button" class="calc-key" onclick="calcAction('7')">7</button>
+        <button type="button" class="calc-key" onclick="calcAction('8')">8</button>
+        <button type="button" class="calc-key" onclick="calcAction('9')">9</button>
+        <button type="button" class="calc-key op" onclick="calcAction('-')">-</button>
+        
+        <button type="button" class="calc-key" onclick="calcAction('4')">4</button>
+        <button type="button" class="calc-key" onclick="calcAction('5')">5</button>
+        <button type="button" class="calc-key" onclick="calcAction('6')">6</button>
+        <button type="button" class="calc-key op" onclick="calcAction('+')">+</button>
+        
+        <button type="button" class="calc-key" onclick="calcAction('1')">1</button>
+        <button type="button" class="calc-key" onclick="calcAction('2')">2</button>
+        <button type="button" class="calc-key" onclick="calcAction('3')">3</button>
+        <button type="button" class="calc-key op" onclick="calcAction('=')">=</button>
+        
+        <button type="button" class="calc-key" onclick="calcAction('0')">0</button>
+        <button type="button" class="calc-key" onclick="calcAction('.')">.</button>
+        <button type="button" class="calc-key action" onclick="calcApply()">反映する</button>
+        <button type="button" class="calc-key" style="grid-column: span 2; background: #94a3b8; color: #fff;" onclick="toggleCalc(false)">閉じる</button>
+      </div>
+    </div>
+  </div>
   <div class="container">
     <div class="app-header">
       <h1>💰 家計簿入力</h1>
@@ -101,11 +226,17 @@ function buildHtml_(categories) {
     
     <div class="form-container">
       <form id="entryForm">
-        <label>📅 日付 <span id="dayOfWeek" style="font-weight: normal; font-size: 1.2rem; margin-left: 10px; color: #64748b;"></span></label>
-        <input type="date" name="date" value="${today}" required>
+        <label>📅 日付</label>
+        <div class="date-wrapper">
+          <input type="date" name="date" value="${today}" required>
+          <span id="dayOfWeek"></span>
+        </div>
         
         <label>💴 金額</label>
-        <input type="number" name="amount" placeholder="0" inputmode="numeric" required>
+        <div style="display: flex; gap: 15px;">
+          <input type="number" name="amount" placeholder="0" inputmode="numeric" required style="flex: 1.5;">
+          <div class="calc-btn-trigger" onclick="toggleCalc(true)" style="flex: 1;">🧮 電卓</div>
+        </div>
         
         <label>🛒 店舗・内容</label>
         <input type="text" name="shop" placeholder="どこで？" required>
@@ -148,10 +279,62 @@ function buildHtml_(categories) {
       const dateVal = dateInput.value;
       if (dateVal) {
         const date = new Date(dateVal);
-        const day = weekDays[date.getDay()];
+        const dayIdx = date.getDay();
+        const day = weekDays[dayIdx];
         dayOfWeekSpan.textContent = '(' + day + ')';
+        
+        // 色付け
+        if (dayIdx === 0) dayOfWeekSpan.style.color = '#ef4444'; // 日: 赤
+        else if (dayIdx === 6) dayOfWeekSpan.style.color = '#3b82f6'; // 土: 青
+        else dayOfWeekSpan.style.color = '#64748b'; // 平日: グレー
       } else {
         dayOfWeekSpan.textContent = '';
+      }
+    }
+
+    // 電卓ロジック
+    let calcExpr = '';
+    const calcDisplay = document.getElementById('calcDisplay');
+    const amountInput = document.querySelector('[name=amount]');
+
+    function toggleCalc(show) {
+      document.getElementById('calcOverlay').style.display = show ? 'flex' : 'none';
+      if (show) {
+        calcExpr = amountInput.value || '0';
+        updateCalcDisplay();
+      }
+    }
+
+    function updateCalcDisplay() {
+      calcDisplay.textContent = calcExpr || '0';
+    }
+
+    function calcAction(val) {
+      if (val === 'C') {
+        calcExpr = '';
+      } else if (val === 'back') {
+        calcExpr = calcExpr.slice(0, -1);
+      } else if (val === '=') {
+        try {
+          // 安全な計算 (eval は避けるのが一般的だが GAS の HtmlService 内の限定的な用途)
+          // 簡易パーサーを作成
+          calcExpr = String(Function('"use strict";return (' + calcExpr.replace(/[^-()\d/*+.]/g, '') + ')')());
+        } catch (e) {
+          calcExpr = 'Error';
+          setTimeout(() => { calcExpr = ''; updateCalcDisplay(); }, 1000);
+        }
+      } else {
+        if (calcExpr === '0' && !isNaN(val)) calcExpr = val;
+        else calcExpr += val;
+      }
+      updateCalcDisplay();
+    }
+
+    function calcApply() {
+      calcAction('=');
+      if (calcExpr !== 'Error') {
+        amountInput.value = calcExpr;
+        toggleCalc(false);
       }
     }
 
