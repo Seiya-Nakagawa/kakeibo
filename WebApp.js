@@ -294,12 +294,17 @@ function buildHtml_(categories) {
 
     // 電卓ロジック
     let calcExpr = '';
+    let errorTimeoutId = null;
     const calcDisplay = document.getElementById('calcDisplay');
     const amountInput = document.querySelector('[name=amount]');
 
     function toggleCalc(show) {
       document.getElementById('calcOverlay').style.display = show ? 'flex' : 'none';
       if (show) {
+        if (errorTimeoutId) {
+          clearTimeout(errorTimeoutId);
+          errorTimeoutId = null;
+        }
         calcExpr = amountInput.value || '0';
         updateCalcDisplay();
       }
@@ -310,6 +315,14 @@ function buildHtml_(categories) {
     }
 
     function calcAction(val) {
+      if (errorTimeoutId) {
+        clearTimeout(errorTimeoutId);
+        errorTimeoutId = null;
+        if (calcExpr === 'Error') {
+          calcExpr = '';
+        }
+      }
+
       if (val === 'C') {
         calcExpr = '';
       } else if (val === 'back') {
@@ -318,10 +331,17 @@ function buildHtml_(categories) {
         try {
           // 安全な計算 (eval は避けるのが一般的だが GAS の HtmlService 内の限定的な用途)
           // 簡易パーサーを作成
-          calcExpr = String(Function('"use strict";return (' + calcExpr.replace(/[^-()\d/*+.]/g, '') + ')')());
+          // テンプレートリテラル内なので \\d と記述してブラウザに \d として出力する
+          calcExpr = String(Function('"use strict";return (' + calcExpr.replace(/[^-()\\d/*+.]/g, '') + ')')());
         } catch (e) {
           calcExpr = 'Error';
-          setTimeout(() => { calcExpr = ''; updateCalcDisplay(); }, 1000);
+          updateCalcDisplay();
+          errorTimeoutId = setTimeout(() => {
+            calcExpr = '';
+            updateCalcDisplay();
+            errorTimeoutId = null;
+          }, 1000);
+          return;
         }
       } else {
         if (calcExpr === '0' && !isNaN(val)) calcExpr = val;
