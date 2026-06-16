@@ -18,7 +18,7 @@
    - `clasp deploy -i AKfycbwJkGi-ZjBbujrOGC5lajEsW_bEzO8vfhhqtZwaA_ltEMRkQcz_X6Qx46fzimgel_sfVg -d "変更内容の説明"`
 3. **動作確認**: ユーザーに対して以下の本番URLでの動作確認を依頼する。
    - URL: <https://script.google.com/macros/s/AKfycbwJkGi-ZjBbujrOGC5lajEsW_bEzO8vfhhqtZwaA_ltEMRkQcz_X6Qx46fzimgel_sfVg/exec>
-4. **Git への反映**: ユーザーから動作確認完了（OK）の連絡を受けた後にのみ、`git commit`、`git push` を行う。
+4. **Git への反映**: ユーザーから動作確認完了（OK）の連絡を受けた後にのみ、`main` ブランチへ直接 `git commit`、`git push` を行う（機能ブランチやプルリクエスト（PR）の作成は不要）。
 
 ## 3. 家族共有・複数ユーザー利用時の注意点
 
