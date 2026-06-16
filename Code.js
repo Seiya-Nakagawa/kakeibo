@@ -9,8 +9,7 @@
  *   GAS 処理後、ラベルを「家計簿/処理済み」に付け替える。
  */
 
-/** エラー通知先メールアドレス */
-const ALERT_EMAIL = 'aibdlnew1.work@gmail.com';
+
 
 /**
  * 「家計簿/未処理」ラベルのスレッドを取込む。
@@ -113,7 +112,7 @@ function runAutoImport() {
     const body = '以下のメールの取込に失敗しました。パーサーの正規表現を確認してください。\n\n' +
                  errors.map((e, i) => (i + 1) + '. ' + e).join('\n\n');
     sendErrorAlert_(subject, body);
-    console.warn('エラー通知を送信しました: ' + ALERT_EMAIL);
+    console.warn('エラー通知を送信しました: ' + getAlertEmail());
   }
 }
 
@@ -161,7 +160,12 @@ function getOrCreateLabel_(labelName) {
  */
 function sendErrorAlert_(subject, body) {
   try {
-    GmailApp.sendEmail(ALERT_EMAIL, subject, body);
+    const alertEmail = getAlertEmail();
+    if (!alertEmail) {
+      console.error('エラー通知メール送信失敗: スクリプトプロパティ "ALERT_EMAIL" が設定されていません。');
+      return;
+    }
+    GmailApp.sendEmail(alertEmail, subject, body);
   } catch (e) {
     console.error('エラー通知メール送信失敗: ' + e.message);
   }

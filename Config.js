@@ -7,6 +7,7 @@
  *
  * スクリプトプロパティ（PropertiesService）で管理するキー:
  *   GEMINI_API_KEY : Gemini API キー
+ *   ALERT_EMAIL    : エラー通知先メールアドレス
  *
  * Gmail ラベル運用:
  *   LABEL_UNPROCESSED のラベルを Gmail フィルタで決済通知メールに自動付与しておく。
@@ -19,6 +20,11 @@ function getGeminiApiKey() {
   const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!key) throw new Error('スクリプトプロパティ GEMINI_API_KEY が未設定です。');
   return key;
+}
+
+/** エラー通知先メールアドレスをスクリプトプロパティから取得する */
+function getAlertEmail() {
+  return PropertiesService.getScriptProperties().getProperty('ALERT_EMAIL');
 }
 
 /** Web アプリ用パスワードをスクリプトプロパティから取得する */
