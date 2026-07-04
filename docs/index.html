@@ -3,167 +3,395 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>家計簿</title>
+  <title>家計簿入力</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    html, body {
-      width: 100%;
-      height: 100%;
+    :root {
+      --primary: #059669; /* emerald 600 */
+      --primary-hover: #047857; /* emerald 700 */
+      --primary-light: #ecfdf5; /* emerald 50 */
+      --bg: #f8fafc; /* slate 50 */
+      --card-bg: #ffffff;
+      --text: #1e293b; /* slate 800 */
+      --text-muted: #64748b; /* slate 500 */
+      --border: #e2e8f0; /* slate 200 */
+      --focus-ring: rgba(5, 150, 105, 0.2);
+      --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      background: #ffffff;
-      color: #1e293b;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 20px; /* 全体の基準をさらにアップ */
     }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.5;
+      padding: 24px 16px 48px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
     .container {
       width: 100%;
-      padding: 0 16px 40px;
-      box-sizing: border-box;
+      max-width: 480px;
     }
+
     .app-header {
-      padding: 30px 0 10px;
+      margin-bottom: 24px;
       text-align: center;
     }
-    .app-header h1 { font-size: 2.2rem; margin: 0; }
-    
-    .form-container {
-      width: 100%;
-    }
-    
-    label {
-      display: block;
-      font-size: 2.2rem; /* さらに大きく */
-      font-weight: 900;
-      margin: 40px 0 15px;
-      color: #334155;
-    }
-    input, select {
-      width: 100%;
-      height: 120px; /* 極限の高さ */
-      padding: 0 30px;
-      border: 4px solid #e2e8f0;
-      border-radius: 24px;
-      font-size: 42px; /* 入力文字を極限まで巨大に */
-      font-weight: bold;
-      box-sizing: border-box;
-      background: #fff;
-      -webkit-appearance: none;
-    }
-    input:focus, select:focus { border-color: #2563eb; outline: none; }
-    
-    .btn {
-      width: 100%;
-      height: 90px; /* 特大ボタン */
-      background: #2563eb;
-      color: #fff;
-      border: none;
-      border-radius: 20px;
-      font-size: 1.8rem;
-      font-weight: 900;
-      margin-top: 50px;
-      cursor: pointer;
-      box-shadow: 0 10px 20px rgba(37,99,235,0.3);
-    }
-    .btn:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
-    .btn:active:not(:disabled) { transform: scale(0.96); opacity: 0.9; }
-    
-    #message { margin-top: 30px; padding: 20px; border-radius: 12px; display: none; text-align: center; font-weight: 800; font-size: 1.2rem; }
 
-    /* 電卓スタイル */
-    /* 電卓起動ボタン（入力欄と同サイズ） */
-    .calc-btn-trigger {
+    .app-header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #0f172a;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      height: 120px;
-      background: #f1f5f9;
-      border: 4px solid #cbd5e1;
-      border-radius: 24px;
-      font-size: 42px; /* 入力欄(42px)と合わせる */
-      font-weight: bold;
-      cursor: pointer;
-      color: #334155;
+      gap: 10px;
     }
-    .calc-btn-trigger:active { background: #e2e8f0; }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* 入力フィールドの基本スタイル */
+    input, select {
+      width: 100%;
+      height: 50px;
+      padding: 0 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text);
+      background-color: var(--card-bg);
+      transition: all 0.2s ease;
+      font-family: inherit;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      background-size: 16px;
+      padding-right: 40px;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px var(--focus-ring);
+      outline: none;
+    }
+
+    input::placeholder {
+      color: #94a3b8;
+    }
+
+    /* 日付と曜日のスタイリング */
+    .date-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .date-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #dayOfWeek {
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #f1f5f9;
+      min-width: 48px;
+      text-align: center;
+    }
+
+    /* 金額入力と電卓ボタン */
+    .amount-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .amount-input-wrapper {
+      flex: 1.6;
+    }
+
+    .calc-btn-trigger {
+      flex: 1;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #f1f5f9;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .calc-btn-trigger:hover {
+      background: #e2e8f0;
+    }
+
+    .calc-btn-trigger:active {
+      transform: scale(0.97);
+    }
+
+    /* 登録ボタン */
+    .btn {
+      width: 100%;
+      height: 52px;
+      background: linear-gradient(135deg, var(--primary) 0%, #0d9488 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover:not(:disabled) {
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.2);
+    }
+
+    .btn:disabled {
+      background: #cbd5e1;
+      color: #94a3b8;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* エラー時のボタン */
+    .btn-retry {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+    }
+    
+    .btn-retry:hover:not(:disabled) {
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+    }
+
+    /* アラートメッセージ */
+    #message {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      display: none;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      border: 1px solid transparent;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateY(-10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* エラー内の認証リンク */
+    .error-link {
+      color: #b91c1c;
+      text-decoration: underline;
+      font-weight: 700;
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 12px;
+      background: #fee2e2;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+
+    .error-link:hover {
+      background: #fca5a5;
+    }
+
+    /* 電卓モーダル */
     .calc-overlay {
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
+      background: rgba(15, 23, 42, 0.6);
       z-index: 1000;
       justify-content: center;
-      align-items: center;
+      align-items: flex-end; /* スマホで操作しやすいボトムシート */
+      backdrop-filter: blur(4px);
     }
+
     .calculator {
-      background: #fff;
+      background: var(--card-bg);
       width: 100%;
-      height: 100%;
-      max-width: none;
-      border-radius: 0;
-      padding: 30px 20px;
+      max-width: 480px;
+      border-radius: 24px 24px 0 0;
+      padding: 24px 24px 40px;
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
+      box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1);
+      transform: translateY(100%);
+      transition: transform 0.25s ease-out;
     }
+
+    .calc-overlay.active {
+      display: flex;
+    }
+
+    .calc-overlay.active .calculator {
+      transform: translateY(0);
+    }
+
     .calc-display {
       width: 100%;
-      height: 140px; /* さらに高く */
-      background: #f8fafc;
-      border-radius: 18px;
-      margin-bottom: 30px;
+      height: 72px;
+      background: #1e293b;
+      color: #34d399; /* emerald 400 */
+      border-radius: 14px;
+      margin-bottom: 20px;
       text-align: right;
-      padding: 20px;
-      font-size: 6rem; /* さらに巨大化 */
-      font-weight: bold;
+      padding: 0 20px;
+      font-size: 2.25rem;
+      font-weight: 700;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      overflow-x: auto; /* 長い計算式でも対応 */
+      overflow-x: auto;
+      font-family: monospace;
+      letter-spacing: 0.05em;
     }
+
     .calc-grid {
-      flex: 1;
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 15px;
+      gap: 12px;
+      margin-bottom: 16px;
     }
+
     .calc-key {
-      height: 100%;
-      min-height: 70px;
+      height: 54px;
       border: none;
-      border-radius: 20px;
-      font-size: 3.5rem; /* さらに大きく */
-      font-weight: bold;
+      border-radius: 12px;
+      font-size: 1.2rem;
+      font-weight: 600;
       background: #f1f5f9;
-      color: #334155;
+      color: var(--text);
       cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .calc-key.op { background: #e2e8f0; color: #1e293b; font-size: 4rem; }
-    .calc-key.action { background: #2563eb; color: #fff; grid-column: span 2; font-size: 2.8rem; }
-    .calc-key.clear { background: #fef2f2; color: #991b1b; }
-    .calc-key:active { background: #cbd5e1; }
-    
-    /* 日付入力欄内の曜日表示用 */
-    .date-wrapper {
-      position: relative;
-      width: 100%;
+
+    .calc-key.op {
+      background: #e2e8f0;
+      color: #0f172a;
+      font-size: 1.3rem;
     }
-    #dayOfWeek {
-      position: absolute;
-      right: 50px; /* カレンダーアイコンを避ける */
-      top: 50%;
-      transform: translateY(-50%);
-      pointer-events: none; /* 下の入力を邪魔しない */
-      font-weight: bold;
-      font-size: 1.4rem;
+
+    .calc-key.clear {
+      background: #fee2e2;
+      color: #ef4444;
     }
-    input[type="date"] {
-      padding-right: 100px; /* 曜日分の余白 */
+
+    .calc-key:active {
+      background: #cbd5e1;
+      transform: scale(0.95);
+    }
+
+    .calc-key.clear:active {
+      background: #fca5a5;
+    }
+
+    .calc-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .calc-action-btn {
+      height: 50px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .calc-action-btn.apply {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .calc-action-btn.close {
+      background: #f1f5f9;
+      color: var(--text);
+    }
+
+    .calc-action-btn:active {
+      transform: scale(0.97);
     }
   </style>
 </head>
 <body>
+  <!-- 電卓モーダル -->
   <div class="calc-overlay" id="calcOverlay">
     <div class="calculator">
       <div class="calc-display" id="calcDisplay">0</div>
@@ -190,48 +418,65 @@
         
         <button type="button" class="calc-key" onclick="calcAction('0')">0</button>
         <button type="button" class="calc-key" onclick="calcAction('.')">.</button>
-        <button type="button" class="calc-key action" onclick="calcApply()">反映する</button>
-        <button type="button" class="calc-key" style="grid-column: span 2; background: #94a3b8; color: #fff;" onclick="toggleCalc(false)">閉じる</button>
+      </div>
+      <div class="calc-actions">
+        <button type="button" class="calc-action-btn close" onclick="toggleCalc(false)">閉じる</button>
+        <button type="button" class="calc-action-btn apply" onclick="calcApply()">反映する</button>
       </div>
     </div>
   </div>
+
   <div class="container">
     <div class="app-header">
       <h1>💰 家計簿入力</h1>
     </div>
     
-    <div class="form-container">
+    <div class="card">
       <form id="entryForm">
-        <label>📅 日付</label>
-        <div class="date-wrapper">
-          <input type="date" name="date" required>
-          <span id="dayOfWeek"></span>
+        <div class="form-group date-container">
+          <label>📅 日付</label>
+          <div class="date-row">
+            <input type="date" name="date" required style="flex: 1;">
+            <span id="dayOfWeek"></span>
+          </div>
         </div>
         
-        <label>💴 金額</label>
-        <div style="display: flex; gap: 15px;">
-          <input type="number" name="amount" placeholder="0" inputmode="numeric" required style="flex: 1.5;">
-          <div class="calc-btn-trigger" onclick="toggleCalc(true)" style="flex: 1;">🧮 電卓</div>
+        <div class="form-group">
+          <label>💴 金額</label>
+          <div class="amount-row">
+            <div class="amount-input-wrapper">
+              <input type="number" name="amount" placeholder="0" inputmode="numeric" required>
+            </div>
+            <div class="calc-btn-trigger" onclick="toggleCalc(true)">🧮 電卓</div>
+          </div>
         </div>
         
-        <label>🛒 店舗・内容</label>
-        <input type="text" name="shop" placeholder="どこで？" required>
+        <div class="form-group">
+          <label>🛒 店舗・内容</label>
+          <input type="text" name="shop" placeholder="どこで？" required>
+        </div>
         
-        <label>🏷️ カテゴリ</label>
-        <select name="category" required>
-          <option value="">読み込み中...</option>
-        </select>
+        <div class="form-group">
+          <label>🏷️ カテゴリ</label>
+          <select name="category" required>
+            <option value="">読み込み中...</option>
+          </select>
+        </div>
         
-        <label>📝 備考</label>
-        <input type="text" name="memo" placeholder="メモ（任意）">
+        <div class="form-group">
+          <label>📝 備考</label>
+          <input type="text" name="memo" placeholder="メモ（任意）">
+        </div>
 
-        <label>💳 支払方法</label>
-        <select name="source" required>
-          <option value="現金">現金</option>
-          <option value="楽天ペイ">楽天ペイ</option>
-          <option value="楽天カード">楽天カード</option>
-          <option value="口座引落">口座引落</option>
-        </select>
+        <div class="form-group">
+          <label>💳 支払方法</label>
+          <select name="source" required>
+            <option value="現金">現金</option>
+            <option value="楽天ペイ">楽天ペイ</option>
+            <option value="楽天カード">楽天カード</option>
+            <option value="口座引落">口座引落</option>
+          </select>
+        </div>
         
         <button type="submit" class="btn" id="submitBtn" disabled>読み込み中...</button>
         <div id="message"></div>
@@ -243,13 +488,24 @@
     // GASのWeb App APIのURL
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwJkGi-ZjBbujrOGC5lajEsW_bEzO8vfhhqtZwaA_ltEMRkQcz_X6Qx46fzimgel_sfVg/exec";
 
-    function showMessage(text, color) {
+    let isLoadError = false;
+
+    function showMessage(text, color, isHtml = false) {
       const msg = document.getElementById('message');
-      msg.textContent = text;
+      if (isHtml) {
+        msg.innerHTML = text;
+      } else {
+        msg.textContent = text;
+      }
       msg.style.display = 'block';
       msg.style.background = color === 'green' ? '#ecfdf5' : '#fef2f2';
       msg.style.color = color === 'green' ? '#065f46' : '#991b1b';
-      setTimeout(() => { msg.style.display = 'none'; }, 5000);
+      msg.style.borderColor = color === 'green' ? '#a7f3d0' : '#fecaca';
+      
+      // 自動消去は正常登録時のみ（エラー時は確認できるよう残す）
+      if (color === 'green') {
+        setTimeout(() => { msg.style.display = 'none'; }, 5000);
+      }
     }
 
     const dayOfWeekSpan = document.getElementById('dayOfWeek');
@@ -262,14 +518,22 @@
         const date = new Date(dateVal);
         const dayIdx = date.getDay();
         const day = weekDays[dayIdx];
-        dayOfWeekSpan.textContent = '(' + day + ')';
+        dayOfWeekSpan.textContent = day;
         
-        // 色付け
-        if (dayIdx === 0) dayOfWeekSpan.style.color = '#ef4444'; // 日: 赤
-        else if (dayIdx === 6) dayOfWeekSpan.style.color = '#3b82f6'; // 土: 青
-        else dayOfWeekSpan.style.color = '#64748b'; // 平日: グレー
+        // 色付けと背景色
+        if (dayIdx === 0) {
+          dayOfWeekSpan.style.color = '#ef4444'; // 日: 赤
+          dayOfWeekSpan.style.background = '#fee2e2';
+        } else if (dayIdx === 6) {
+          dayOfWeekSpan.style.color = '#3b82f6'; // 土: 青
+          dayOfWeekSpan.style.background = '#dbeafe';
+        } else {
+          dayOfWeekSpan.style.color = '#475569'; // 平日: チャコール
+          dayOfWeekSpan.style.background = '#f1f5f9';
+        }
       } else {
         dayOfWeekSpan.textContent = '';
+        dayOfWeekSpan.style.background = 'transparent';
       }
     }
 
@@ -289,6 +553,16 @@
     // 初期化処理: カテゴリ一覧の取得と日付の初期設定
     function initApp() {
       const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '読み込み中...';
+      btn.classList.remove('btn-retry');
+      
+      const msg = document.getElementById('message');
+      msg.style.display = 'none';
+
+      const categorySelect = document.querySelector('[name=category]');
+      categorySelect.innerHTML = '<option value="">読み込み中...</option>';
+
       fetch(GAS_API_URL + "?action=init")
         .then(res => {
           if (!res.ok) throw new Error('Network response was not ok');
@@ -296,7 +570,6 @@
         })
         .then(data => {
           // カテゴリの描画
-          const categorySelect = document.querySelector('[name=category]');
           if (data.categories && data.categories.length > 0) {
             categorySelect.innerHTML = data.categories
               .map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>')
@@ -311,10 +584,26 @@
           
           btn.disabled = false;
           btn.textContent = '登録する';
+          isLoadError = false;
         })
         .catch(err => {
-          showMessage('初期データの取得に失敗しました', 'red');
+          isLoadError = true;
+          categorySelect.innerHTML = '<option value="">読み込みエラー</option>';
+          
+          const errorHtml = `
+            <strong>初期データの取得に失敗しました。</strong><br>
+            Googleアカウントの認証（OAuth承認）が完了していないか、一時的な通信エラーの可能性があります。<br>
+            <a href="${GAS_API_URL}" target="_blank" class="error-link">👉 こちらの本番URLを開いて認証を完了してください</a><br>
+            <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted); display: block; margin-top: 4px;">
+              ※開いた先で「アクセス権が必要です」と表示される場合は、開発者アカウントでログインしているか確認してください。
+            </span>
+          `;
+          showMessage(errorHtml, 'red', true);
+          
           console.error(err);
+          btn.disabled = false;
+          btn.textContent = '再読み込みする';
+          btn.classList.add('btn-retry');
         });
     }
 
@@ -325,14 +614,17 @@
     const amountInput = document.querySelector('[name=amount]');
 
     function toggleCalc(show) {
-      document.getElementById('calcOverlay').style.display = show ? 'flex' : 'none';
+      const overlay = document.getElementById('calcOverlay');
       if (show) {
+        overlay.classList.add('active');
         if (errorTimeoutId) {
           clearTimeout(errorTimeoutId);
           errorTimeoutId = null;
         }
         calcExpr = amountInput.value || '0';
         updateCalcDisplay();
+      } else {
+        overlay.classList.remove('active');
       }
     }
 
@@ -385,6 +677,13 @@
 
     document.getElementById('entryForm').addEventListener('submit', function(e) {
       e.preventDefault();
+      
+      // ロードエラー時は再読み込みボタンとして動作
+      if (isLoadError) {
+        initApp();
+        return;
+      }
+
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
       btn.textContent = '登録中...';
@@ -424,7 +723,7 @@
         btn.textContent = '登録する';
       })
       .catch(err => {
-        showMessage('通信エラーが発生しました', 'red');
+        showMessage('通信エラーが発生しました。時間を置いて再度お試しください。', 'red');
         console.error(err);
         btn.disabled = false;
         btn.textContent = '登録する';
