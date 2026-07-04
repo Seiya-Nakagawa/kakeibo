@@ -647,7 +647,7 @@
         calcExpr = calcExpr.slice(0, -1);
       } else if (val === '=') {
         try {
-          calcExpr = String(Function('"use strict";return (' + calcExpr.replace(/[^-()\\d/*+.]/g, '') + ')')());
+          calcExpr = String(Function('"use strict";return (' + calcExpr.replace(/[^-()\d/*+.]/g, '') + ')')());
         } catch (e) {
           calcExpr = 'Error';
           updateCalcDisplay();
