@@ -35,7 +35,12 @@
 - **ログイン状態とデプロイの自動確認**:
   - デプロイの失敗（claspのセッション切れ）やデプロイ後の警告忘れを防ぐため、常にルートの `./deploy.sh` スクリプトを使用してプッシュ・デプロイを行うこと。
   - このスクリプトは `clasp` のログインが切れている場合に処理を中断し、再ログインを促します。
-- **「アクセス権が必要です」と表示された場合**:
-  - Web Appのアクセス設定（`access: "ANYONE_ANONYMOUS"`）や必要なアクセス権限（Scopes）に変更があった場合、初回アクセス時にGoogleが承認を求めます。
-  - 開発者のGoogleアカウントで [本番URL](https://script.google.com/macros/s/AKfycbwJkGi-ZjBbujrOGC5lajEsW_bEzO8vfhhqtZwaA_ltEMRkQcz_X6Qx46fzimgel_sfVg/exec) を一度ブラウザで開き、承認フロー（詳細 ＞ 移動）を完了させてください。
+- **「アクセス権が必要です」と表示された場合や時間トリガー（runAutoImport）が「Authorization is required...」で失敗する場合**:
+  - Web Appのアクセス設定（`access: "ANYONE_ANONYMOUS"`）や必要なアクセス権限（Scopes）に変更があった場合、Googleが承認を求めます。
+  - **Web Appの承認方法**: 開発者のGoogleアカウントで [本番URL](https://script.google.com/macros/s/AKfycbwJkGi-ZjBbujrOGC5lajEsW_bEzO8vfhhqtZwaA_ltEMRkQcz_X6Qx46fzimgel_sfVg/exec) を一度ブラウザで開き、承認フロー（詳細 ＞ 移動）を完了させてください。
+  - **時間トリガーの承認方法**: スコープ変更などにより、時間トリガーの動作に必要な権限が不足している場合に発生します。以下の手順で再承認を行ってください。
+    1. Google Apps Scriptのウェブエディタを開きます。
+    2. 関数一覧から `runAutoImport` （または任意の関数）を選択し、**手動で「実行」ボタンをクリック**します。
+    3. 「承認が必要です」というダイアログが表示されるので、「権限を確認」をクリックして承認フロー（詳細 ＞ 移動 ＞ 許可）を完了させてください。
+    4. これでもエラーが解消しない場合は、GAS左側メニューの「トリガー」（時計マーク）から、該当のトリガーを一度削除して再作成してください。
 
