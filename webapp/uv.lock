@@ -35,6 +35,18 @@ wheels = [
 ]
 
 [[package]]
+name = "gunicorn"
+version = "26.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/b7/a4a3f632f823e432ce6bc65f62961b7980c898c77f075a2f7118cb3846fe/gunicorn-26.0.0.tar.gz", hash = "sha256:ca9346f85e3a4aeeb64d491045c16b9a35647abd37ea15efe53080eb8b090baf", size = 727286, upload-time = "2026-05-05T06:38:25.529Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/40/9c2384fc2be4ad25dd4a49decd5ad9ea5a3639814c11bd40ab77cb9f0a14/gunicorn-26.0.0-py3-none-any.whl", hash = "sha256:40233d26a5f0d1872916188c276e21641155111c2853f0c2cd55260aec0d24fc", size = 212009, upload-time = "2026-05-05T06:38:23.007Z" },
+]
+
+[[package]]
 name = "mysqlclient"
 version = "2.2.8"
 source = { registry = "https://pypi.org/simple" }
@@ -42,6 +54,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/eb/b0/9df076488cb2e536d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/42/44/6ae21b4e8490eb5167d04fa7452c462ffd72a502b96bf531477ef044a380/mysqlclient-2.2.8-cp314-cp314-win_amd64.whl", hash = "sha256:9bed7c8d3b629bdc09e17fb628d5b3b0a5fd1f12b09432b464b9126c727bedc0", size = 211644, upload-time = "2026-02-10T10:58:45.022Z" },
     { url = "https://files.pythonhosted.org/packages/66/e5/037d55623be9f681236e04abe12e1290847c06bd48270c3f19ac33493cbf/mysqlclient-2.2.8-cp314-cp314t-win_amd64.whl", hash = "sha256:260cce0e81446c83bf0a389e0fae38d68547d9f8fc0833bc733014e10ce28a99", size = 213067, upload-time = "2026-02-10T10:58:43.389Z" },
+]
+
+[[package]]
+name = "packaging"
+version = "26.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
 ]
 
 [[package]]
@@ -69,6 +90,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "django" },
     { name = "django-environ" },
+    { name = "gunicorn" },
     { name = "mysqlclient" },
 ]
 
@@ -76,5 +98,6 @@ dependencies = [
 requires-dist = [
     { name = "django", specifier = ">=5.2.8,<5.3" },
     { name = "django-environ", specifier = ">=0.14.0" },
+    { name = "gunicorn", specifier = ">=26.0.0" },
     { name = "mysqlclient", specifier = ">=2.2.8" },
 ]
