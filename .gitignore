@@ -5,3 +5,8 @@ data/
 creds.json
 .clasprc.json
 .antigravitycli
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
