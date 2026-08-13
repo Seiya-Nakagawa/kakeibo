@@ -24,6 +24,10 @@ uv init --python 3.14
 uv add "django>=5.2.8,<5.3" django-environ mysqlclient
 ```
 
+- `uv init --python 3.14`: Python 3.14 を指定して `pyproject.toml` を持つ uv プロジェクトを初期化する
+- `uv add "django>=5.2.8,<5.3" django-environ mysqlclient`: Django / django-environ /
+  mysqlclient を依存関係として追加する
+
 `.gitignore` に Python/uv 関連の除外設定を追加する。
 
 ```gitignore
@@ -42,6 +46,9 @@ db.sqlite3
 rm main.py
 uv run django-admin startproject config .
 ```
+
+- `uv run django-admin startproject config .`: `config` という名前の Django プロジェクトを
+  カレントディレクトリ（`webapp/`）に作成する
 
 ### 3.3. 設定ファイルの分割
 
@@ -65,6 +72,8 @@ uv run django-admin startproject config .
 ```bash
 uv add gunicorn
 ```
+
+- `uv add gunicorn`: 本番用 WSGI サーバー gunicorn を依存関係に追加する
 
 `webapp/Dockerfile` を multi-stage 構成で作成する。
 
