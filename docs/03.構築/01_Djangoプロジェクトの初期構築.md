@@ -77,20 +77,6 @@ uv add gunicorn
 照合順序 `utf8mb4_0900_ai_ci` を起動オプションで指定）と Django アプリ（`web`）の
 2 サービスでローカル開発環境を構成する。
 
-### 3.5. 設計書への反映
-
-基本設計書の採用ライブラリ表に `uv` / `django-environ` / `gunicorn` を追記する
-（[docs-sync.md](../../.claude/rules/docs-sync.md) に基づき、コード変更と同一PRで実施）。
-
-### 3.6. コミット・PR作成
-
-作業ブランチ `feature/issue-18-django-init` 上で以下の2コミットに分けて実施した。
-
-1. `chore: Djangoプロジェクト用のuv環境を初期化`（3.1 の途中経過。uv 環境と依存関係のみ）
-2. `feat: Djangoプロジェクトの初期構築`（3.2〜3.5。`Closes #18`）
-
-PR作成後、ユーザーレビュー・マージを経て `main` に統合した（マージコミット: `bf578f2`）。
-
 ## 4. 確認事項
 
 - 開発環境は MySQL へ TCP 接続、本番環境は Unix ソケット接続とし、接続方式を
