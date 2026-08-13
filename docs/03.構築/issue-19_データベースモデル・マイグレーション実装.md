@@ -1,0 +1,96 @@
+# issue-19 構築手順書 - データベースモデル・マイグレーション実装
+
+## 1. 概要
+
+対応Issue: [#19](https://github.com/Seiya-Nakagawa/kakeibo/issues/19)
+
+基本設計書のテーブル定義を Django モデルとして実装し、マイグレーションを作成する。
+users, categories, store_rules, payment_methods, accounts, balance_records,
+fixed_costs, fixed_incomes, transactions, email_import_logs の10テーブルを、
+単一 Django アプリ `kakeibo`（`webapp/kakeibo/`）にまとめて実装する。
+対応する設計書: [基本設計書 4章](../02.設計/基本設計書.md#4-データベース設計)
+
+## 2. 前提条件
+
+- [issue-18](issue-18_Djangoプロジェクトの初期構築.md) の完了により `webapp/` に
+  Django プロジェクトの雛形が存在すること
+- ローカルで MySQL（docker compose の `db` サービス）に接続できること
+
+## 3. 手順
+
+作業ブランチ: `feature/issue-19-django-models`
+
+### 3.1. ブランチ準備
+
+```bash
+git switch main && git pull origin main
+git switch -c feature/issue-19-django-models
+```
+
+### 3.2. アプリ作成
+
+```bash
+cd webapp
+uv run python manage.py startapp kakeibo
+```
+
+`config/settings/base.py` の `INSTALLED_APPS` に `'kakeibo'` を追加する。
+
+### 3.3. モデル実装
+
+`webapp/kakeibo/models.py` に基本設計書 4.2 節のテーブル定義を反映した10モデルを実装する。
+
+- 主キーは `id`（`BigAutoField`）。プロジェクト共通設定 `DEFAULT_AUTO_FIELD` により
+  自動的に `BIGINT` になるため個別指定は不要
+- `role` / `category_type` / `account_type` / `transaction_type` / `source` /
+  `status` は `models.TextChoices` で選択肢を定義する
+- `UNIQUE (name, category_type)`（categories）、`UNIQUE (account_id, recorded_date)`
+  （balance_records）は `Meta.constraints` の `UniqueConstraint` で実装する
+- `transaction_date` は `db_index=True`、`transaction_type` は `Meta.indexes` で
+  明示的にインデックスを付与する（`category_id` 等の FK カラムは Django が自動で
+  インデックスを付与するため個別指定なし）
+
+### 3.4. マイグレーション作成・確認
+
+```bash
+uv run python manage.py makemigrations kakeibo
+```
+
+生成された `webapp/kakeibo/migrations/0001_initial.py` を目視確認し、
+UNIQUE制約・インデックスが設計書どおりか確認する。
+
+### 3.5. ローカルDBで動作確認
+
+```bash
+docker compose up -d db
+uv run python manage.py migrate
+```
+
+### 3.6. Lint
+
+```bash
+uvx ruff check .
+uvx ruff format --check .
+```
+
+### 3.7. コミット・PR作成
+
+3.1〜3.2 の内容を `feat: kakeiboアプリを作成しINSTALLED_APPSに登録` として
+先行コミット（コミット: `5113e36`）。モデル・マイグレーション実装完了後、
+`Closes #19` を含む PR を作成する。
+
+## 4. 確認事項
+
+設計書に明記のない実装判断は以下のとおりとした。
+
+- 10テーブルは単一アプリ `kakeibo` にまとめた（画面設計上、マスタ保守とビューの
+  2系統のみでアプリを分割する明確な境界がないため）。物理テーブル名は
+  `kakeibo_users` 等になる
+- `on_delete` は設計書に記載がないため、必須FK（`NOT NULL`）は `PROTECT`
+  （マスタ削除時に参照中の子データがあれば削除をブロックし、データ消失を防ぐ）、
+  任意FK（`NULL` 許可。`transactions.category/payment_method/account`）は
+  `SET_NULL`（「未分類時はNULL」等の運用と整合）とした
+- Django Admin（`admin.py`）への登録・認証連携は本Issueのスコープ外（別Issueで対応）
+- テーブル文字コード/照合順序（`utf8mb4_0900_ai_ci`）はスキーマ・MySQLサーバー側の
+  既定値に依存する設計のため、モデル側での指定は不要
+  （`docker-compose.yml` のMySQL起動オプションで設定済み）
