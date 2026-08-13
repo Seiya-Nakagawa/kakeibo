@@ -10,3 +10,8 @@ dependencies = [
     "gunicorn>=26.0.0",
     "mysqlclient>=2.2.8",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Django の Meta.constraints/indexes はモデル定義時にのみ参照される規約上の書き方であり、
+# 可変なクラス属性デフォルト値(RUF012)の懸念（インスタンス間の値共有）が当てはまらない。
+"**/models.py" = ["RUF012"]
