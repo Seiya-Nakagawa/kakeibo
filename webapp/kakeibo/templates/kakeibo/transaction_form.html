@@ -1,0 +1,30 @@
+{% extends "kakeibo/base.html" %}
+
+{% block title %}取引{% if object %}編集{% else %}登録{% endif %} - 家計簿{% endblock %}
+
+{% block content %}
+  <h1>取引{% if object %}編集{% else %}登録{% endif %}</h1>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <button type="submit">保存</button>
+  </form>
+
+  <script>
+    // 種別（支出/収入）に応じて決済手段/入金先口座の項目を切り替える（基本設計書5.3.3節）。
+    function toggleTransactionTypeFields() {
+      const checked = document.querySelector('input[name="transaction_type"]:checked');
+      const type = checked ? checked.value : "expense";
+      const paymentMethodRow = document.getElementById("id_payment_method").closest("p");
+      const accountRow = document.getElementById("id_account").closest("p");
+      paymentMethodRow.style.display = type === "expense" ? "" : "none";
+      accountRow.style.display = type === "income" ? "" : "none";
+    }
+    document.querySelectorAll('input[name="transaction_type"]').forEach((el) => {
+      el.addEventListener("change", toggleTransactionTypeFields);
+    });
+    toggleTransactionTypeFields();
+  </script>
+{% endblock %}

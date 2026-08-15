@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}家計簿{% endblock %}</title>
+    <style>
+      body { font-family: sans-serif; margin: 1rem; }
+      nav a { margin-right: 1rem; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 0.4rem; text-align: left; }
+      .messages { list-style: none; padding: 0; }
+      .messages li { padding: 0.4rem; margin-bottom: 0.5rem; background: #eef; }
+      .errorlist { color: #c00; }
+      fieldset { margin-bottom: 1rem; }
+    </style>
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="{% url 'dashboard' %}">ダッシュボード</a>
+        <a href="{% url 'transaction-list' %}">取引一覧</a>
+        <a href="{% url 'transaction-create' %}">取引登録</a>
+        <a href="{% url 'unclassified-transaction-list' %}">未分類取引</a>
+        <a href="{% url 'account-balance' %}">資産残高</a>
+        {% if user.is_staff %}<a href="{% url 'admin:index' %}">マスタ管理</a>{% endif %}
+      </nav>
+      {% if user.is_authenticated %}
+        <p>
+          {{ user.display_name }}さん（{{ user.get_role_display }}）
+          <form method="post" action="{% url 'account_logout' %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit">ログアウト</button>
+          </form>
+        </p>
+      {% endif %}
+    </header>
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

@@ -1,17 +1,7 @@
-<!DOCTYPE html>
-<html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <title>家計簿</title>
-  </head>
-  <body>
-    <main>
-      <p>{{ user.display_name }}さん（{{ user.get_role_display }}）としてログイン中です。</p>
-      <p>ダッシュボードは別Issueで実装予定です。</p>
-      <form method="post" action="{% url 'account_logout' %}">
-        {% csrf_token %}
-        <button type="submit">ログアウト</button>
-      </form>
-    </main>
-  </body>
-</html>
+{% extends "kakeibo/base.html" %}
+
+{% block title %}ホーム - 家計簿{% endblock %}
+
+{% block content %}
+  <p>ログインしました。上部のメニューから各画面へ移動してください。</p>
+{% endblock %}
