@@ -187,3 +187,10 @@ NOTIFICATION_RECIPIENT_EMAIL = env("NOTIFICATION_RECIPIENT_EMAIL", default="")
 
 # メール取込バッチ（基本設計書6.2節）で登録する取引のcreated_by（登録者）として扱う利用者。
 MAIL_IMPORT_USER_EMAIL = env("MAIL_IMPORT_USER_EMAIL", default="")
+
+# バックアップ（要件6.4、基本設計書7.2節）: OCI Object StorageへS3互換API（boto3）で保管する。
+BACKUP_S3_ENDPOINT_URL = env("BACKUP_S3_ENDPOINT_URL", default="")
+BACKUP_S3_ACCESS_KEY = env("BACKUP_S3_ACCESS_KEY", default="")
+BACKUP_S3_SECRET_KEY = env("BACKUP_S3_SECRET_KEY", default="")
+BACKUP_S3_REGION = env("BACKUP_S3_REGION", default="")
+BACKUP_BUCKET_NAME = env("BACKUP_BUCKET_NAME", default="")
