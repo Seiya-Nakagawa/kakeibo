@@ -1,0 +1,63 @@
+# バックアップバッチ（要件6.4、基本設計書7.2節: 日次実行）。
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kakeibo-backup
+  namespace: kakeibo
+spec:
+  # メール取込より後、DBへの日中の書き込みが少ない時間帯を想定した仮の値。要調整。
+  schedule: "0 3 * * *"
+  timeZone: "Asia/Tokyo"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          volumes:
+            - name: mysqld-socket-dir
+              hostPath:
+                path: /var/run/mysqld
+                type: Directory
+          initContainers:
+            - name: fix-mysqld-socket-permission
+              image: busybox:1.36
+              command:
+                - sh
+                - -c
+                - |
+                  until [ -S /var/run/mysqld/mysqld.sock ]; do
+                    echo "waiting for mysqld.sock..."
+                    sleep 1
+                  done
+                  chmod 666 /var/run/mysqld/mysqld.sock
+              securityContext:
+                runAsUser: 0
+              volumeMounts:
+                - name: mysqld-socket-dir
+                  mountPath: /var/run/mysqld
+          containers:
+            - name: backup
+              image: kakeibo:latest # REPLACE_WITH_ACTUAL_IMAGE_TAG（web.yamlと同一イメージ）
+              command: ["python", "manage.py", "backup_database"]
+              envFrom:
+                - configMapRef:
+                    name: kakeibo-config
+                - secretRef:
+                    name: kakeibo-secrets
+              volumeMounts:
+                - name: mysqld-socket-dir
+                  mountPath: /var/run/mysqld
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi

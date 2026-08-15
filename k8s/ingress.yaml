@@ -1,0 +1,32 @@
+# 基本設計書1.1.1節: 単一ドメイン配下をパスプレフィックス（/kakeibo）で振り分ける。
+# ingress-nginxでプレフィックスを除去してバックエンドへ転送し、Django側は
+# FORCE_SCRIPT_NAME（config/settings/production.py）で/kakeiboを付与する。
+#
+# 注意: TLS（cert-manager）・ホスト名（technohonesty.com）は個人開発の複数アプリで
+# 共有する想定のため、tls.secretNameは他アプリのIngress/Certificateリソースが
+# 管理する既存のSecretを指す可能性がある。実際の証明書管理構成に合わせて要確認。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kakeibo-web
+  namespace: kakeibo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - technohonesty.com
+      secretName: technohonesty-com-tls
+  rules:
+    - host: technohonesty.com
+      http:
+        paths:
+          - path: /kakeibo(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: kakeibo-web
+                port:
+                  number: 80
