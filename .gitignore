@@ -11,3 +11,6 @@ creds.json
 __pycache__/
 *.pyc
 db.sqlite3
+
+# Django collectstatic出力（Dockerfileのビルド時に生成、コミット不要）
+webapp/staticfiles/

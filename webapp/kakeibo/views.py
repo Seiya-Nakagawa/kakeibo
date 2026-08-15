@@ -1,23 +1,78 @@
 import csv
+from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
+from kakeibo import aggregation
 from kakeibo.categorization import register_learned_rule
 from kakeibo.forms import CategoryAssignForm, TransactionFilterForm, TransactionForm
 from kakeibo.models import Transaction
 
 
-class HomeView(TemplateView):
-    """ログイン後の暫定的な遷移先（画面2 ダッシュボードは別Issueで実装）。"""
+def _parse_target_month(raw: str | None) -> date:
+    if raw:
+        try:
+            year, month = raw.split("-")
+            return date(int(year), int(month), 1)
+        except ValueError, TypeError:
+            pass
+    return aggregation.month_start(timezone.localdate())
 
-    template_name = "kakeibo/home.html"
+
+class DashboardView(TemplateView):
+    """画面2 ダッシュボード（基本設計書5.3.1節）。"""
+
+    template_name = "kakeibo/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        target_month = _parse_target_month(self.request.GET.get("month"))
+
+        category_summaries = aggregation.category_breakdown(target_month)
+        expense_total = aggregation.variable_expense_total(
+            target_month
+        ) + aggregation.fixed_expense_total(target_month)
+        income = aggregation.income_total(target_month)
+        balance_trend = aggregation.monthly_balance_trend(target_month)
+        assets = aggregation.asset_trend(target_month)
+
+        context.update(
+            {
+                "target_month": target_month,
+                "income_total": income,
+                "expense_total": expense_total,
+                "balance_diff": income - expense_total,
+                "category_summaries": category_summaries,
+                "unclassified_count": aggregation.unclassified_transaction_count(),
+                "expense_trend_labels": [
+                    m.month.strftime("%Y-%m") for m in balance_trend
+                ],
+                "expense_trend_data": [m.expense for m in balance_trend],
+                "category_composition_labels": [
+                    s.category.name for s in category_summaries if s.actual > 0
+                ],
+                "category_composition_data": [
+                    s.actual for s in category_summaries if s.actual > 0
+                ],
+                "balance_trend_labels": [
+                    m.month.strftime("%Y-%m") for m in balance_trend
+                ],
+                "balance_trend_income": [m.income for m in balance_trend],
+                "balance_trend_expense": [m.expense for m in balance_trend],
+                "balance_trend_diff": [m.diff for m in balance_trend],
+                "asset_trend_labels": [m.strftime("%Y-%m") for m, _ in assets],
+                "asset_trend_data": [total for _, total in assets],
+            }
+        )
+        return context
 
 
 @method_decorator(login_not_required, name="dispatch")
