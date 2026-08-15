@@ -163,3 +163,12 @@ SOCIALACCOUNT_PROVIDERS = {
 # 要件4.9.6: セッションには有効期限を設け、一定時間の無操作で再認証を求める。
 SESSION_COOKIE_AGE = env.int("SESSION_TIMEOUT_SECONDS", default=1800)
 SESSION_SAVE_EVERY_REQUEST = True
+
+# Gmail API（メール取込・通知、基本設計書6.1節）。
+# ログイン認証（Google OAuth、AUTHENTICATION_BACKENDS）とは別のOAuthクライアントを使用する。
+GMAIL_API_CLIENT_ID = env("GMAIL_API_CLIENT_ID", default="")
+GMAIL_API_CLIENT_SECRET = env("GMAIL_API_CLIENT_SECRET", default="")
+GMAIL_API_REFRESH_TOKEN = env("GMAIL_API_REFRESH_TOKEN", default="")
+
+# 通知（要件6.5.1、基本設計書7.4節）: エラー発生時の通知メール送信先。
+NOTIFICATION_RECIPIENT_EMAIL = env("NOTIFICATION_RECIPIENT_EMAIL", default="")

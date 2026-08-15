@@ -8,6 +8,9 @@ dependencies = [
     "django>=5.2.8,<5.3",
     "django-allauth[socialaccount]>=65.12.1",
     "django-environ>=0.14.0",
+    "google-api-python-client>=2.184.0",
+    "google-auth>=2.41.1",
+    "google-auth-httplib2>=0.2.0",
     "gunicorn>=26.0.0",
     "mysqlclient>=2.2.8",
 ]
