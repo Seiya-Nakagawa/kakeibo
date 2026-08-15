@@ -9,7 +9,8 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
-from kakeibo.forms import TransactionFilterForm, TransactionForm
+from kakeibo.categorization import register_learned_rule
+from kakeibo.forms import CategoryAssignForm, TransactionFilterForm, TransactionForm
 from kakeibo.models import Transaction
 
 
@@ -146,3 +147,45 @@ class TransactionDeleteView(View):
         transaction.save(update_fields=["is_deleted", "updated_at"])
         messages.success(request, "取引を削除しました。")
         return redirect("transaction-list")
+
+
+class UnclassifiedTransactionListView(ListView):
+    """画面5 未分類取引一覧（基本設計書5.3.4節）。"""
+
+    template_name = "kakeibo/unclassified_transaction_list.html"
+    context_object_name = "transactions"
+
+    def get_queryset(self):
+        return (
+            Transaction.objects.filter(
+                is_deleted=False,
+                category__isnull=True,
+                transaction_type=Transaction.TransactionType.EXPENSE,
+            )
+            .select_related("payment_method")
+            .order_by("-transaction_date", "-id")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["assign_form"] = CategoryAssignForm()
+        return context
+
+
+class AssignCategoryView(View):
+    """画面5 カテゴリ割当（要件4.2.5〜4.2.6: 割当時に店舗ルールへ自動学習登録する）。"""
+
+    def post(self, request, pk, *args, **kwargs):
+        transaction = get_object_or_404(
+            Transaction, pk=pk, is_deleted=False, category__isnull=True
+        )
+        form = CategoryAssignForm(request.POST)
+        if form.is_valid():
+            category = form.cleaned_data["category"]
+            transaction.category = category
+            transaction.save(update_fields=["category", "updated_at"])
+            register_learned_rule(category, transaction.counterpart)
+            messages.success(request, "カテゴリを割り当てました。")
+        else:
+            messages.error(request, "カテゴリの割当に失敗しました。")
+        return redirect("unclassified-transaction-list")

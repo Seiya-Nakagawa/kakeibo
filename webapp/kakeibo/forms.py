@@ -73,6 +73,14 @@ class TransactionFilterForm(forms.Form):
         self.fields["payment_method"].queryset = PaymentMethod.objects.all()
 
 
+class CategoryAssignForm(forms.Form):
+    """画面5 未分類取引一覧: カテゴリ選択・割当（基本設計書5.3.4節）。"""
+
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.filter(category_type=Category.CategoryType.EXPENSE)
+    )
+
+
 class BalanceRecordForm(forms.ModelForm):
     """画面7 残高記録入力（基本設計書5.1.1節）。"""
 
