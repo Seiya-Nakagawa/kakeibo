@@ -5,25 +5,10 @@ import logging
 from email.mime.text import MIMEText
 
 from django.conf import settings
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+
+from kakeibo.gmail_client import SCOPE_SEND, build_gmail_service
 
 logger = logging.getLogger(__name__)
-
-GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
-GMAIL_TOKEN_URI = "https://oauth2.googleapis.com/token"
-
-
-def _build_gmail_service():
-    credentials = Credentials(
-        token=None,
-        refresh_token=settings.GMAIL_API_REFRESH_TOKEN,
-        client_id=settings.GMAIL_API_CLIENT_ID,
-        client_secret=settings.GMAIL_API_CLIENT_SECRET,
-        token_uri=GMAIL_TOKEN_URI,
-        scopes=[GMAIL_SEND_SCOPE],
-    )
-    return build("gmail", "v1", credentials=credentials, cache_discovery=False)
 
 
 def notify_admin(subject: str, body: str) -> bool:
@@ -45,7 +30,7 @@ def notify_admin(subject: str, body: str) -> bool:
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     try:
-        service = _build_gmail_service()
+        service = build_gmail_service([SCOPE_SEND])
         service.users().messages().send(userId="me", body={"raw": raw}).execute()
     except Exception:
         logger.exception("通知メールの送信に失敗しました: subject=%s", subject)

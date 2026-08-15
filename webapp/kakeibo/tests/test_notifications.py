@@ -12,7 +12,7 @@ from kakeibo.notifications import notify_admin
     GMAIL_API_REFRESH_TOKEN="refresh-token",
 )
 class NotifyAdminTests(TestCase):
-    @patch("kakeibo.notifications._build_gmail_service")
+    @patch("kakeibo.notifications.build_gmail_service")
     def test_sends_message_via_gmail_api(self, mock_build_service):
         mock_service = MagicMock()
         mock_build_service.return_value = mock_service
@@ -25,7 +25,7 @@ class NotifyAdminTests(TestCase):
         self.assertEqual(kwargs["userId"], "me")
         self.assertIn("raw", kwargs["body"])
 
-    @patch("kakeibo.notifications._build_gmail_service")
+    @patch("kakeibo.notifications.build_gmail_service")
     def test_returns_false_and_does_not_raise_on_api_error(self, mock_build_service):
         mock_build_service.side_effect = RuntimeError("api error")
 

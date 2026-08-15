@@ -172,3 +172,6 @@ GMAIL_API_REFRESH_TOKEN = env("GMAIL_API_REFRESH_TOKEN", default="")
 
 # 通知（要件6.5.1、基本設計書7.4節）: エラー発生時の通知メール送信先。
 NOTIFICATION_RECIPIENT_EMAIL = env("NOTIFICATION_RECIPIENT_EMAIL", default="")
+
+# メール取込バッチ（基本設計書6.2節）で登録する取引のcreated_by（登録者）として扱う利用者。
+MAIL_IMPORT_USER_EMAIL = env("MAIL_IMPORT_USER_EMAIL", default="")
