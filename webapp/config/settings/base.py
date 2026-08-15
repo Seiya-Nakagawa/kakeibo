@@ -134,6 +134,11 @@ LOGOUT_REDIRECT_URL = "account_login"
 ACCOUNT_ADAPTER = "kakeibo.adapters.AccountAdapter"
 SOCIALACCOUNT_ADAPTER = "kakeibo.adapters.SocialAccountAdapter"
 
+# kakeibo.Userはusernameフィールドを持たないため、allauthにその旨を明示する。
+# 未設定（既定値"username"）のままだと、ログイン後メッセージ表示等でuser.usernameを
+# 参照しAttributeErrorになる（Noneの場合はUser.__str__=display_nameにフォールバックする）。
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+
 # ローカルのメール/パスワードによるサインアップ・ログインは提供せず、Google OAuthのみを許可する。
 # ローカルサインアップ画面自体はAccountAdapter.is_open_for_signupで到達不可にしているが、
 # ACCOUNT_LOGIN_METHODSのemailと矛盾しない構成にしてallauthのシステムチェック警告
