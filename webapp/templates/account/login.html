@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+{% load socialaccount %}
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ログイン - 家計簿</title>
+  </head>
+  <body>
+    <main>
+      <h1>家計簿</h1>
+      <p>Googleアカウントでログインしてください。</p>
+      <a href="{% provider_login_url 'google' next=request.GET.next %}">Googleでログイン</a>
+    </main>
+  </body>
+</html>
