@@ -33,6 +33,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     "kakeibo",
 ]
 
@@ -42,6 +47,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
+    # 要件4.9.3: 未認証状態ではログイン画面を除く全ページへのアクセスを拒否する。
+    # 個別ビューを認証不要にする場合は @login_not_required を明示する。
+    "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -51,7 +60,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -106,3 +115,51 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# 認証（要件4.9、基本設計書6.4節）
+
+AUTH_USER_MODEL = "kakeibo.User"
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+SITE_ID = 1
+
+LOGIN_URL = "account_login"
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "account_login"
+
+ACCOUNT_ADAPTER = "kakeibo.adapters.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "kakeibo.adapters.SocialAccountAdapter"
+
+# kakeibo.Userはusernameフィールドを持たないため、allauthにその旨を明示する。
+# 未設定（既定値"username"）のままだと、ログイン後メッセージ表示等でuser.usernameを
+# 参照しAttributeErrorになる（Noneの場合はUser.__str__=display_nameにフォールバックする）。
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+
+# ローカルのメール/パスワードによるサインアップ・ログインは提供せず、Google OAuthのみを許可する。
+# ローカルサインアップ画面自体はAccountAdapter.is_open_for_signupで到達不可にしているが、
+# ACCOUNT_LOGIN_METHODSのemailと矛盾しない構成にしてallauthのシステムチェック警告
+# （account.W001）を解消する。
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*"]
+ACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_AUTO_SIGNUP = False
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APP": {
+            "client_id": env("GOOGLE_OAUTH_CLIENT_ID"),
+            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET"),
+            "key": "",
+        },
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    },
+}
+
+# 要件4.9.6: セッションには有効期限を設け、一定時間の無操作で再認証を求める。
+SESSION_COOKIE_AGE = env.int("SESSION_TIMEOUT_SECONDS", default=1800)
+SESSION_SAVE_EVERY_REQUEST = True

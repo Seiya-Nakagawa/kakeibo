@@ -1,23 +1,63 @@
+from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.db import models
 
 
-class User(models.Model):
+class UserManager(BaseUserManager):
+    """パスワードを持たない（Google OAuth専用）利用者のマネージャ。"""
+
+    def create_user(self, email, display_name, role=None, **extra_fields):
+        if not email:
+            raise ValueError("email is required")
+        user = self.model(
+            email=self.normalize_email(email),
+            display_name=display_name,
+            role=role or User.Role.GENERAL,
+            **extra_fields,
+        )
+        user.set_unusable_password()
+        user.save(using=self._db)
+        return user
+
+
+class User(AbstractBaseUser):
     """家計簿を利用する家族メンバー（Google OAuthでログイン）。"""
 
     class Role(models.TextChoices):
         ADMIN = "admin", "管理者"
         GENERAL = "general", "一般"
 
-    google_sub = models.CharField(max_length=255, unique=True)
+    # 事前登録時点ではGoogle側のsubが不明なため、初回ログイン成功時に設定する。
+    google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=255, unique=True)
     display_name = models.CharField(max_length=100)
-    role = models.CharField(max_length=20, choices=Role.choices)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.GENERAL)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = UserManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["display_name"]
+
     def __str__(self):
         return self.display_name
+
+    # PermissionsMixinは使わず、role（admin/general）のみで権限を判定する。
+    # groups/permissionsテーブルは本システムの権限設計（2段階）では不要なため導入しない。
+    @property
+    def is_staff(self):
+        return self.role == self.Role.ADMIN
+
+    @property
+    def is_superuser(self):
+        return self.role == self.Role.ADMIN
+
+    def has_perm(self, perm, obj=None):
+        return self.is_superuser
+
+    def has_module_perms(self, app_label):
+        return self.is_superuser
 
 
 class Category(models.Model):
