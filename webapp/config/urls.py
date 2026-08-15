@@ -8,8 +8,14 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("access-denied/", views.AccessDeniedView.as_view(), name="account-denied"),
     path("", views.DashboardView.as_view(), name="dashboard"),
-    # navigation実装のため先行してURL名を予約する。実体はIssue #26で置き換える。
-    path("balance-placeholder/", views.DashboardView.as_view(), name="account-balance"),
+    path(
+        "accounts-balance/", views.AccountBalanceView.as_view(), name="account-balance"
+    ),
+    path(
+        "accounts-balance/record/",
+        views.BalanceRecordCreateView.as_view(),
+        name="balance-record-create",
+    ),
     path(
         "transactions/unclassified/",
         views.UnclassifiedTransactionListView.as_view(),

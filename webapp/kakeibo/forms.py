@@ -82,7 +82,11 @@ class CategoryAssignForm(forms.Form):
 
 
 class BalanceRecordForm(forms.ModelForm):
-    """画面7 残高記録入力（基本設計書5.1.1節）。"""
+    """画面7 残高記録入力（基本設計書5.1.1節）。
+
+    要件4.6.3（同一口座・同一基準日は上書き）に対応するため、呼び出し側
+    （ビュー）は既存レコードがあればform_kwargsの`instance`にそれを渡す。
+    """
 
     class Meta:
         model = BalanceRecord

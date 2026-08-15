@@ -119,18 +119,41 @@ def category_breakdown(target_month: date) -> list[CategorySummary]:
     return summaries
 
 
-def total_assets_as_of(as_of: date) -> int:
-    """総資産（口座ごとのbalance_recordsの最新記録を合算、基本設計書3.3節）。"""
-    total = 0
-    for account in Account.objects.all():
+@dataclass(frozen=True)
+class AccountBalance:
+    account: Account
+    latest_record: BalanceRecord | None
+
+
+def account_balances(as_of: date) -> list[AccountBalance]:
+    """口座ごとの最新残高記録（基本設計書5.3.5節: 口座一覧）。"""
+    results = []
+    for account in Account.objects.filter(is_active=True).order_by("display_order"):
         latest = (
             BalanceRecord.objects.filter(account=account, recorded_date__lte=as_of)
             .order_by("-recorded_date")
             .first()
         )
-        if latest:
-            total += latest.balance
-    return total
+        results.append(AccountBalance(account=account, latest_record=latest))
+    return results
+
+
+def total_assets_as_of(as_of: date) -> int:
+    """総資産（有効な口座ごとのbalance_recordsの最新記録を合算、基本設計書3.3節）。"""
+    return sum(
+        ab.latest_record.balance for ab in account_balances(as_of) if ab.latest_record
+    )
+
+
+def assets_by_account_type(as_of: date) -> dict:
+    """口座種別ごとの資産内訳（基本設計書5.3.5節: サマリー）。"""
+    totals: dict = {}
+    for ab in account_balances(as_of):
+        if not ab.latest_record:
+            continue
+        label = ab.account.get_account_type_display()
+        totals[label] = totals.get(label, 0) + ab.latest_record.balance
+    return totals
 
 
 @dataclass(frozen=True)

@@ -9,12 +9,23 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.views.generic import CreateView, ListView, TemplateView, UpdateView
+from django.views.generic import (
+    CreateView,
+    FormView,
+    ListView,
+    TemplateView,
+    UpdateView,
+)
 
 from kakeibo import aggregation
 from kakeibo.categorization import register_learned_rule
-from kakeibo.forms import CategoryAssignForm, TransactionFilterForm, TransactionForm
-from kakeibo.models import Transaction
+from kakeibo.forms import (
+    BalanceRecordForm,
+    CategoryAssignForm,
+    TransactionFilterForm,
+    TransactionForm,
+)
+from kakeibo.models import BalanceRecord, Transaction
 
 
 def _parse_target_month(raw: str | None) -> date:
@@ -22,7 +33,7 @@ def _parse_target_month(raw: str | None) -> date:
         try:
             year, month = raw.split("-")
             return date(int(year), int(month), 1)
-        except ValueError, TypeError:
+        except ValueError:
             pass
     return aggregation.month_start(timezone.localdate())
 
@@ -244,3 +255,58 @@ class AssignCategoryView(View):
         else:
             messages.error(request, "カテゴリの割当に失敗しました。")
         return redirect("unclassified-transaction-list")
+
+
+def _account_balance_context(balance_form=None) -> dict:
+    """画面6 資産残高で共通の集計データ（基本設計書5.3.5節）。"""
+    today = timezone.localdate()
+    assets = aggregation.asset_trend(aggregation.month_start(today))
+    return {
+        "as_of": today,
+        "total_assets": aggregation.total_assets_as_of(today),
+        "assets_by_type": aggregation.assets_by_account_type(today),
+        "account_balances": aggregation.account_balances(today),
+        "asset_trend_labels": [m.strftime("%Y-%m") for m, _ in assets],
+        "asset_trend_data": [total for _, total in assets],
+        "balance_form": balance_form or BalanceRecordForm(),
+    }
+
+
+class AccountBalanceView(TemplateView):
+    """画面6 資産残高（基本設計書5.3.5節）。"""
+
+    template_name = "kakeibo/account_balance.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_account_balance_context())
+        return context
+
+
+class BalanceRecordCreateView(FormView):
+    """画面7 残高記録入力（要件4.6.2〜4.6.3: 同一口座・同一基準日は上書き）。"""
+
+    form_class = BalanceRecordForm
+    template_name = "kakeibo/account_balance.html"
+    success_url = reverse_lazy("account-balance")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if self.request.method == "POST":
+            existing = BalanceRecord.objects.filter(
+                account_id=self.request.POST.get("account"),
+                recorded_date=self.request.POST.get("recorded_date") or None,
+            ).first()
+            if existing:
+                kwargs["instance"] = existing
+        return kwargs
+
+    def form_valid(self, form):
+        form.save()
+        messages.success(self.request, "残高を記録しました。")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, "残高の記録に失敗しました。")
+        context = _account_balance_context(balance_form=form)
+        return self.render_to_response(context)

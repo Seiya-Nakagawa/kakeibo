@@ -181,6 +181,30 @@ class TotalAssetsTests(AggregationTestBase):
         self.assertEqual(aggregation.total_assets_as_of(date(2026, 8, 15)), 150000)
         self.assertEqual(aggregation.total_assets_as_of(date(2026, 7, 15)), 100000)
 
+    def test_inactive_account_excluded_from_total(self):
+        self.account.is_active = False
+        self.account.save()
+        BalanceRecord.objects.create(
+            account=self.account, recorded_date=date(2026, 8, 1), balance=100000
+        )
+        self.assertEqual(aggregation.total_assets_as_of(date(2026, 8, 15)), 0)
+
+
+class AssetsByAccountTypeTests(AggregationTestBase):
+    def test_groups_totals_by_account_type_label(self):
+        cash_account = Account.objects.create(
+            name="現金", account_type=Account.AccountType.CASH
+        )
+        BalanceRecord.objects.create(
+            account=self.account, recorded_date=date(2026, 8, 1), balance=100000
+        )
+        BalanceRecord.objects.create(
+            account=cash_account, recorded_date=date(2026, 8, 1), balance=5000
+        )
+        breakdown = aggregation.assets_by_account_type(date(2026, 8, 15))
+        self.assertEqual(breakdown["銀行"], 100000)
+        self.assertEqual(breakdown["現金"], 5000)
+
 
 class UnclassifiedCountTests(AggregationTestBase):
     def test_counts_only_unclassified_expense(self):
