@@ -1,0 +1,127 @@
+{% extends "kakeibo/base.html" %}
+{% load static %}
+
+{% block title %}ダッシュボード - 家計簿{% endblock %}
+
+{% block extra_head %}
+  <script src="{% static 'kakeibo/vendor/chart.umd.min.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+  <h1>ダッシュボード</h1>
+
+  <form method="get">
+    <label>
+      対象月
+      <input type="month" name="month" value="{{ target_month|date:'Y-m' }}" onchange="this.form.submit()" />
+    </label>
+  </form>
+
+  {% if unclassified_count %}
+    <p>
+      未分類の取引が{{ unclassified_count }}件あります。
+      <a href="{% url 'unclassified-transaction-list' %}">未分類取引一覧へ</a>
+    </p>
+  {% endif %}
+
+  <section>
+    <h2>サマリー（{{ target_month|date:"Y年n月" }}）</h2>
+    <table>
+      <tr><th>収入合計</th><td>{{ income_total }}円</td></tr>
+      <tr><th>支出合計</th><td>{{ expense_total }}円</td></tr>
+      <tr><th>収支差額</th><td>{{ balance_diff }}円</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>カテゴリ別支出</h2>
+    <table>
+      <thead>
+        <tr><th>カテゴリ</th><th>実績</th><th>予算</th><th>差額</th></tr>
+      </thead>
+      <tbody>
+        {% for summary in category_summaries %}
+          <tr{% if summary.diff is not None and summary.diff < 0 %} style="color: #c00;"{% endif %}>
+            <td>{{ summary.category.name }}</td>
+            <td>{{ summary.actual }}円</td>
+            <td>{{ summary.budget|default:"-" }}{% if summary.budget is not None %}円{% endif %}</td>
+            <td>{{ summary.diff|default:"-" }}{% if summary.diff is not None %}円{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>月次支出推移（直近12ヶ月）</h2>
+    <canvas id="expense-trend-chart" height="80"></canvas>
+  </section>
+
+  <section>
+    <h2>当月カテゴリ別支出構成比</h2>
+    <canvas id="category-composition-chart" height="80"></canvas>
+  </section>
+
+  <section>
+    <h2>月次収支推移</h2>
+    <canvas id="balance-trend-chart" height="80"></canvas>
+  </section>
+
+  <section>
+    <h2>総資産推移</h2>
+    <canvas id="asset-trend-chart" height="80"></canvas>
+  </section>
+
+  {{ expense_trend_labels|json_script:"expense-trend-labels" }}
+  {{ expense_trend_data|json_script:"expense-trend-data" }}
+  {{ category_composition_labels|json_script:"category-composition-labels" }}
+  {{ category_composition_data|json_script:"category-composition-data" }}
+  {{ balance_trend_labels|json_script:"balance-trend-labels" }}
+  {{ balance_trend_income|json_script:"balance-trend-income" }}
+  {{ balance_trend_expense|json_script:"balance-trend-expense" }}
+  {{ balance_trend_diff|json_script:"balance-trend-diff" }}
+  {{ asset_trend_labels|json_script:"asset-trend-labels" }}
+  {{ asset_trend_data|json_script:"asset-trend-data" }}
+
+  <script>
+    function readJson(id) {
+      return JSON.parse(document.getElementById(id).textContent);
+    }
+
+    new Chart(document.getElementById("expense-trend-chart"), {
+      type: "bar",
+      data: {
+        labels: readJson("expense-trend-labels"),
+        datasets: [{ label: "支出", data: readJson("expense-trend-data") }],
+      },
+    });
+
+    new Chart(document.getElementById("category-composition-chart"), {
+      type: "pie",
+      data: {
+        labels: readJson("category-composition-labels"),
+        datasets: [{ data: readJson("category-composition-data") }],
+      },
+    });
+
+    new Chart(document.getElementById("balance-trend-chart"), {
+      type: "line",
+      data: {
+        labels: readJson("balance-trend-labels"),
+        datasets: [
+          { label: "収入", data: readJson("balance-trend-income") },
+          { label: "支出", data: readJson("balance-trend-expense") },
+          { label: "収支差額", data: readJson("balance-trend-diff") },
+        ],
+      },
+    });
+
+    new Chart(document.getElementById("asset-trend-chart"), {
+      type: "line",
+      data: {
+        labels: readJson("asset-trend-labels"),
+        datasets: [{ label: "総資産", data: readJson("asset-trend-data") }],
+      },
+    });
+  </script>
+{% endblock %}

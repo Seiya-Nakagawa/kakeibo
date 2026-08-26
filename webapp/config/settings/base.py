@@ -43,6 +43,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # 静的ファイル（Admin/Chart.js等）をgunicornから直接配信する（本番、7.4節: デプロイの自動化）。
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -110,6 +112,16 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -128,7 +140,7 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 1
 
 LOGIN_URL = "account_login"
-LOGIN_REDIRECT_URL = "home"
+LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "account_login"
 
 ACCOUNT_ADAPTER = "kakeibo.adapters.AccountAdapter"
@@ -163,3 +175,22 @@ SOCIALACCOUNT_PROVIDERS = {
 # 要件4.9.6: セッションには有効期限を設け、一定時間の無操作で再認証を求める。
 SESSION_COOKIE_AGE = env.int("SESSION_TIMEOUT_SECONDS", default=1800)
 SESSION_SAVE_EVERY_REQUEST = True
+
+# Gmail API（メール取込・通知、基本設計書6.1節）。
+# ログイン認証（Google OAuth、AUTHENTICATION_BACKENDS）とは別のOAuthクライアントを使用する。
+GMAIL_API_CLIENT_ID = env("GMAIL_API_CLIENT_ID", default="")
+GMAIL_API_CLIENT_SECRET = env("GMAIL_API_CLIENT_SECRET", default="")
+GMAIL_API_REFRESH_TOKEN = env("GMAIL_API_REFRESH_TOKEN", default="")
+
+# 通知（要件6.5.1、基本設計書7.4節）: エラー発生時の通知メール送信先。
+NOTIFICATION_RECIPIENT_EMAIL = env("NOTIFICATION_RECIPIENT_EMAIL", default="")
+
+# メール取込バッチ（基本設計書6.2節）で登録する取引のcreated_by（登録者）として扱う利用者。
+MAIL_IMPORT_USER_EMAIL = env("MAIL_IMPORT_USER_EMAIL", default="")
+
+# バックアップ（要件6.4、基本設計書7.2節）: OCI Object StorageへS3互換API（boto3）で保管する。
+BACKUP_S3_ENDPOINT_URL = env("BACKUP_S3_ENDPOINT_URL", default="")
+BACKUP_S3_ACCESS_KEY = env("BACKUP_S3_ACCESS_KEY", default="")
+BACKUP_S3_SECRET_KEY = env("BACKUP_S3_SECRET_KEY", default="")
+BACKUP_S3_REGION = env("BACKUP_S3_REGION", default="")
+BACKUP_BUCKET_NAME = env("BACKUP_BUCKET_NAME", default="")

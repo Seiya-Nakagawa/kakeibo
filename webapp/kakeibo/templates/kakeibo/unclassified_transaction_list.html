@@ -1,0 +1,38 @@
+{% extends "kakeibo/base.html" %}
+
+{% block title %}未分類取引一覧 - 家計簿{% endblock %}
+
+{% block content %}
+  <h1>未分類取引一覧</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>日付</th>
+        <th>店舗名</th>
+        <th>金額</th>
+        <th>決済手段</th>
+        <th>カテゴリ割当</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for transaction in transactions %}
+        <tr>
+          <td>{{ transaction.transaction_date }}</td>
+          <td>{{ transaction.counterpart }}</td>
+          <td>{{ transaction.amount }}</td>
+          <td>{{ transaction.payment_method }}</td>
+          <td>
+            <form method="post" action="{% url 'transaction-assign-category' transaction.pk %}">
+              {% csrf_token %}
+              {{ assign_form.category }}
+              <button type="submit">割当</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">未分類の取引はありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -7,5 +7,44 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
     path("access-denied/", views.AccessDeniedView.as_view(), name="account-denied"),
-    path("", views.HomeView.as_view(), name="home"),
+    path("", views.DashboardView.as_view(), name="dashboard"),
+    path(
+        "accounts-balance/", views.AccountBalanceView.as_view(), name="account-balance"
+    ),
+    path(
+        "accounts-balance/record/",
+        views.BalanceRecordCreateView.as_view(),
+        name="balance-record-create",
+    ),
+    path(
+        "transactions/unclassified/",
+        views.UnclassifiedTransactionListView.as_view(),
+        name="unclassified-transaction-list",
+    ),
+    path(
+        "transactions/<int:pk>/assign-category/",
+        views.AssignCategoryView.as_view(),
+        name="transaction-assign-category",
+    ),
+    path("transactions/", views.TransactionListView.as_view(), name="transaction-list"),
+    path(
+        "transactions/export/",
+        views.TransactionExportCsvView.as_view(),
+        name="transaction-export-csv",
+    ),
+    path(
+        "transactions/new/",
+        views.TransactionCreateView.as_view(),
+        name="transaction-create",
+    ),
+    path(
+        "transactions/<int:pk>/edit/",
+        views.TransactionUpdateView.as_view(),
+        name="transaction-update",
+    ),
+    path(
+        "transactions/<int:pk>/delete/",
+        views.TransactionDeleteView.as_view(),
+        name="transaction-delete",
+    ),
 ]

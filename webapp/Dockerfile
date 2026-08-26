@@ -23,6 +23,7 @@ FROM python:3.14-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb3 \
+    default-mysql-client \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 appuser
 
@@ -33,7 +34,16 @@ COPY --from=builder --chown=appuser:appuser /app /app
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DJANGO_SETTINGS_MODULE=config.settings.production
+    DJANGO_SETTINGS_MODULE=config.settings.production \
+    SECRET_KEY=collectstatic-build-only \
+    DB_NAME=collectstatic \
+    DB_USER=collectstatic \
+    DB_PASSWORD=collectstatic \
+    GOOGLE_OAUTH_CLIENT_ID=collectstatic \
+    GOOGLE_OAUTH_CLIENT_SECRET=collectstatic \
+    ALLOWED_HOSTS=localhost
+
+RUN python manage.py collectstatic --noinput
 
 USER appuser
 

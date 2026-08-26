@@ -1,0 +1,72 @@
+{% extends "kakeibo/base.html" %}
+{% load static %}
+
+{% block title %}資産残高 - 家計簿{% endblock %}
+
+{% block extra_head %}
+  <script src="{% static 'kakeibo/vendor/chart.umd.min.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+  <h1>資産残高</h1>
+
+  <section>
+    <h2>サマリー（{{ as_of }}時点）</h2>
+    <p>総資産: {{ total_assets }}円</p>
+    <table>
+      <thead><tr><th>口座種別</th><th>金額</th></tr></thead>
+      <tbody>
+        {% for type_label, amount in assets_by_type.items %}
+          <tr><td>{{ type_label }}</td><td>{{ amount }}円</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>総資産推移（直近12ヶ月）</h2>
+    <canvas id="asset-trend-chart" height="80"></canvas>
+    {{ asset_trend_labels|json_script:"asset-trend-labels" }}
+    {{ asset_trend_data|json_script:"asset-trend-data" }}
+    <script>
+      new Chart(document.getElementById("asset-trend-chart"), {
+        type: "line",
+        data: {
+          labels: JSON.parse(document.getElementById("asset-trend-labels").textContent),
+          datasets: [
+            {
+              label: "総資産",
+              data: JSON.parse(document.getElementById("asset-trend-data").textContent),
+            },
+          ],
+        },
+      });
+    </script>
+  </section>
+
+  <section>
+    <h2>口座一覧</h2>
+    <table>
+      <thead><tr><th>口座</th><th>種別</th><th>最新残高</th><th>記録日</th></tr></thead>
+      <tbody>
+        {% for entry in account_balances %}
+          <tr>
+            <td>{{ entry.account.name }}</td>
+            <td>{{ entry.account.get_account_type_display }}</td>
+            <td>{% if entry.latest_record %}{{ entry.latest_record.balance }}円{% else %}未記録{% endif %}</td>
+            <td>{{ entry.latest_record.recorded_date|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>残高記録入力</h2>
+    <form method="post" action="{% url 'balance-record-create' %}">
+      {% csrf_token %}
+      {{ balance_form.as_p }}
+      <button type="submit">記録する</button>
+    </form>
+  </section>
+{% endblock %}

@@ -1,0 +1,90 @@
+# Web Pod（基本設計書4.1.1節: hostPathでホストの/var/run/mysqldを共有しUnixドメイン
+# ソケット経由でMySQLへ接続する）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kakeibo-web
+  namespace: kakeibo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kakeibo-web
+  template:
+    metadata:
+      labels:
+        app: kakeibo-web
+    spec:
+      # 4.1.1節: ソケットファイルの再生成（mysqld再起動）に追随するため、
+      # ソケット単体ではなくディレクトリごとマウントする。
+      volumes:
+        - name: mysqld-socket-dir
+          hostPath:
+            path: /var/run/mysqld
+            type: Directory
+      initContainers:
+        # 4.1.1節: root権限・最小構成イメージでソケットファイルのパーミッションを
+        # 調整し、非rootのアプリケーションコンテナから読み書きできるようにする。
+        - name: fix-mysqld-socket-permission
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until [ -S /var/run/mysqld/mysqld.sock ]; do
+                echo "waiting for mysqld.sock..."
+                sleep 1
+              done
+              chmod 666 /var/run/mysqld/mysqld.sock
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: mysqld-socket-dir
+              mountPath: /var/run/mysqld
+      containers:
+        - name: web
+          image: kakeibo:latest # REPLACE_WITH_ACTUAL_IMAGE_TAG（イメージレジストリ・タグはデプロイ手順で確定する）
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: kakeibo-config
+            - secretRef:
+                name: kakeibo-secrets
+          volumeMounts:
+            - name: mysqld-socket-dir
+              mountPath: /var/run/mysqld
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kakeibo-web
+  namespace: kakeibo
+spec:
+  selector:
+    app: kakeibo-web
+  ports:
+    - port: 80
+      targetPort: 8000

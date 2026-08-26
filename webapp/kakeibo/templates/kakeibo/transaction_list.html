@@ -1,0 +1,62 @@
+{% extends "kakeibo/base.html" %}
+
+{% block title %}取引一覧 - 家計簿{% endblock %}
+
+{% block content %}
+  <h1>取引一覧</h1>
+
+  <form method="get">
+    {{ filter_form.as_p }}
+    <button type="submit">絞り込む</button>
+    <a href="{% url 'transaction-export-csv' %}?{{ request.GET.urlencode }}">CSV出力</a>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>日付</th>
+        <th>種別</th>
+        <th>店舗名・収入元</th>
+        <th>カテゴリ</th>
+        <th>金額</th>
+        <th>決済手段/入金先口座</th>
+        <th>登録者</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for transaction in transactions %}
+        <tr>
+          <td>{{ transaction.transaction_date }}</td>
+          <td>{{ transaction.get_transaction_type_display }}</td>
+          <td>{{ transaction.counterpart }}</td>
+          <td>{{ transaction.category.name|default:"未分類" }}</td>
+          <td>{{ transaction.amount }}</td>
+          <td>{{ transaction.payment_method|default:transaction.account }}</td>
+          <td>{{ transaction.created_by.display_name }}</td>
+          <td>
+            <a href="{% url 'transaction-update' transaction.pk %}">編集</a>
+            <form method="post" action="{% url 'transaction-delete' transaction.pk %}" style="display: inline;">
+              {% csrf_token %}
+              <button type="submit" onclick="return confirm('削除しますか？');">削除</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">該当する取引がありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+    <p>
+      {% if page_obj.has_previous %}
+        <a href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">前へ</a>
+      {% endif %}
+      {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+      {% if page_obj.has_next %}
+        <a href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">次へ</a>
+      {% endif %}
+    </p>
+  {% endif %}
+{% endblock %}
