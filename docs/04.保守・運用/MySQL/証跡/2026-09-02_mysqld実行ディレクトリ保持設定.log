@@ -1,0 +1,71 @@
+========================================
+mysql.service RuntimeDirectoryPreserve 設定変更
+実行日時: 2026-09-02
+対象サーバ: oci-portfolio（seiya@217.142.230.83）
+========================================
+
+## 1. 事象確認
+
+Web Pod 内から MySQL Unix ソケットへ接続できない事象が発生していた。
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- ls -la /var/run/mysqld/
+total 0
+
+$ ls -la /var/run/mysqld/
+drwxr-xr-x  2 mysql mysql  120  9月  2 06:29 .
+drwxr-xr-x 39 root  root  1300  9月  2 10:23 ..
+srwxrwxrwx  1 mysql mysql    0  9月  2 06:29 mysqld.sock
+-rw-------  1 mysql mysql    7  9月  2 06:29 mysqld.sock.lock
+srwxrwxrwx  1 mysql mysql    0  9月  2 06:29 mysqlx.sock
+-rw-------  1 mysql mysql    7  9月  2 06:29 mysqlx.sock.lock
+
+$ sudo systemctl is-active mysql
+active
+
+$ sudo systemctl show mysql -p RuntimeDirectoryPreserve -p RuntimeDirectory
+RuntimeDirectoryPreserve=no
+RuntimeDirectory=mysqld
+
+原因: mysql.service が RuntimeDirectory=mysqld / RuntimeDirectoryPreserve=no のため、
+mysqld 再起動のたびに /var/run/mysqld がディレクトリごと再作成される（inode が変わる）。
+既存 Pod の hostPath マウントは削除済みの旧ディレクトリ実体を指したままになり、
+新しいソケットファイルが見えなくなる。
+
+## 2. 設定変更
+
+$ sudo mkdir -p /etc/systemd/system/mysql.service.d
+$ printf '[Service]\nRuntimeDirectoryPreserve=yes\n' | sudo tee /etc/systemd/system/mysql.service.d/override.conf
+[Service]
+RuntimeDirectoryPreserve=yes
+
+$ sudo systemctl daemon-reload
+$ sudo systemctl show mysql -p RuntimeDirectoryPreserve
+RuntimeDirectoryPreserve=yes
+
+## 3. 動作確認
+
+$ stat -c '%i %n' /var/run/mysqld
+513908 /var/run/mysqld
+
+$ sudo systemctl restart mysql
+$ stat -c '%i %n' /var/run/mysqld
+513908 /var/run/mysqld
+
+$ sudo systemctl is-active mysql
+active
+
+再起動前後で /var/run/mysqld の inode（513908）が変化しないことを確認した。
+
+========================================
+## まとめ
+
+mysql.service に `RuntimeDirectoryPreserve=yes` の systemd drop-in
+（`/etc/systemd/system/mysql.service.d/override.conf`）を追加し、
+mysqld 再起動時に実行ディレクトリが再作成されないことを確認した。
+
+ただし本設定変更より前に起動していた Pod の hostPath マウントは
+旧ディレクトリ実体を指したままのため、既存 Pod（`kakeibo-web`）には
+未反映。反映には Pod の再作成（`kubectl rollout restart`）を要する。
+
+本設定は `infra-oci-ansible` 側の構成にも反映し、インスタンス再作成時にも
+自動適用されるようにする必要がある（本リポジトリのスコープ外）。

@@ -1,5 +1,5 @@
-# 機密情報を含まない設定値のみを保持する。機密情報はexternal-secret.yaml経由の
-# kakeibo-secretsで供給する（基本設計書7.3節）。
+# 機密情報を含まない設定値のみを保持する。機密情報はscripts/create_secret.shで
+# 作成するkakeibo-secretsで供給する（基本設計書7.3節）。
 apiVersion: v1
 kind: ConfigMap
 metadata:
