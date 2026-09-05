@@ -1,0 +1,67 @@
+========================================
+Google OAuthログイン500エラー対応（クライアントID誤り修正）
+実行日時: 2026-09-05
+対象サーバ: oci-portfolio（seiya@217.142.230.83）
+========================================
+
+## 1. 事象確認
+
+Issue #47の実地確認中、本番環境（https://technohonesty.com/kakeibo/）でGoogleログインを
+試行したところ、アカウント選択後の同意画面（accounts.google.com/signin/oauth/v3/consent）で
+Google側の「500. エラーが発生しました。」が発生した。redirect_uri_mismatch（Webアプリ用の
+典型的な400エラー）ではなく、アカウント選択・redirect_uri受理までは通過していた。
+
+## 2. 原因調査
+
+Google Cloud Console（プロジェクト kakeibo-493407）を確認した結果、以下が判明した。
+
+- webapp/.env.productionのGOOGLE_OAUTH_CLIENT_IDが、Webアプリケーション種別の
+  「kakeibo-web」ではなく、デスクトップアプリケーション種別の「kakeibo-gas」を指していた
+- デスクトップ種別はリダイレクトURIの事前登録・検証の仕組みを持たないため、
+  redirect_uri_mismatchにはならずにアカウント選択まで通過するが、Webフロー用の同意画面を
+  構築しようとした際にGoogle側の内部処理で不整合が生じ500エラーになっていたと考えられる
+- OAuth同意画面のブランディング（ホームページURL・プライバシーポリシーURL）が未入力だった
+- データアクセスのスコープ（openid / userinfo.email / userinfo.profile）が未登録だった
+
+GMAIL_API_CLIENT_ID（Gmail取込機能用、webapp/kakeibo/gmail_client.pyでrefresh_tokenによる
+サーバー間アクセスに使用）は、デスクトップ種別のクライアントで問題なく機能する構成のため、
+「kakeibo-gas」のままで変更不要と判断した。
+
+## 3. Google Cloud Console側の対応（Console操作のため証跡はConsole上の設定変更履歴を参照）
+
+- OAuth同意画面のブランディングにホームページURL（https://technohonesty.com/kakeibo/）と
+  プライバシーポリシーURL（暫定的に同URLを流用）を設定し、検証を実行
+- データアクセスのスコープにopenid / userinfo.email / userinfo.profileを追加
+- kakeibo-webのクライアントシークレットを1つに整理（旧シークレットを削除）
+
+## 4. 環境変数・Secretの更新
+
+webapp/.env.production（Kubernetes Secretの生成元ファイル、gitignore対象）の
+GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRETを、kakeibo-webのものに更新した。
+
+$ kubectl patch secret kakeibo-secrets -n kakeibo --type=merge -p '{"data":{"GOOGLE_OAUTH_CLIENT_ID":"<base64>","GOOGLE_OAUTH_CLIENT_SECRET":"<base64>"}}'
+secret/kakeibo-secrets patched
+
+- GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRETの2キーのみをマージ更新し、
+  他のキー（DB_PASSWORD等）は変更していない
+
+## 5. Pod再起動
+
+$ kubectl rollout restart deployment/kakeibo-web -n kakeibo
+deployment.apps/kakeibo-web restarted
+
+$ kubectl rollout status deployment/kakeibo-web -n kakeibo --timeout=120s
+deployment "kakeibo-web" successfully rolled out
+
+## 6. 反映確認（値は出力せず一致判定のみ）
+
+$ kubectl get secret kakeibo-secrets -n kakeibo -o jsonpath='{.data.GOOGLE_OAUTH_CLIENT_ID}' | base64 -d と期待値の比較
+MATCH
+
+========================================
+## まとめ
+
+GOOGLE_OAUTH_CLIENT_ID/SECRETをkakeibo-web（Webアプリケーション種別）のものに更新し、
+Kubernetes Secretへの反映・Pod再起動まで完了した。ブラウザでの実地確認（Issue #47）は
+別途ユーザーが実施する。
+========================================
