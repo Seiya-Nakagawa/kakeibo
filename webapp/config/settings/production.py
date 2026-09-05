@@ -5,6 +5,11 @@ DEBUG = False
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
+# TLSはingress-nginxで終端されPodへはプレーンHTTPで転送されるため、明示しないと
+# request.is_secure()がFalseになりOAuthのredirect_uriがhttp://で生成され
+# （Google Cloud Console側はhttps://で登録）redirect_uri_mismatchになる。
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # 基本設計書1.1.1節: /kakeibo配下で動作させるため、URL逆引き・リダイレクト先に
 # プレフィックスを付与する。Ingress側は/kakeiboを除去してバックエンドへ転送する
 # （k8s/ingress.yamlのrewrite-target）ため、Django側は付与のみを担う。

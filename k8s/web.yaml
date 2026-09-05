@@ -43,7 +43,8 @@ spec:
               mountPath: /var/run/mysqld
       containers:
         - name: web
-          image: kakeibo:latest # REPLACE_WITH_ACTUAL_IMAGE_TAG（イメージレジストリ・タグはデプロイ手順で確定する）
+          image: kakeibo:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           envFrom:
@@ -58,14 +59,26 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           readinessProbe:
-            httpGet:
-              path: /
-              port: 8000
+            # ALLOWED_HOSTS=technohonesty.comのみ許可のため、Hostヘッダーが必要。
+            # httpGet+httpHeadersでのHost上書きはkubelet v1.30.14との組み合わせで
+            # 一貫して404になる事象を確認したため、コンテナ内から自分自身にHTTP
+            # リクエストを送るexecプローブで代替する。
+            exec:
+              command:
+                - python
+                - -c
+                - |
+                  import http.client
+                  import sys
+
+                  conn = http.client.HTTPConnection("127.0.0.1", 8000, timeout=3)
+                  conn.request("GET", "/", headers={"Host": "technohonesty.com"})
+                  status = conn.getresponse().status
+                  sys.exit(0 if status < 400 else 1)
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 30

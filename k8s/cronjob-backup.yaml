@@ -41,7 +41,8 @@ spec:
                   mountPath: /var/run/mysqld
           containers:
             - name: backup
-              image: kakeibo:latest # REPLACE_WITH_ACTUAL_IMAGE_TAG（web.yamlと同一イメージ）
+              image: kakeibo:latest
+              imagePullPolicy: IfNotPresent
               command: ["python", "manage.py", "backup_database"]
               envFrom:
                 - configMapRef:

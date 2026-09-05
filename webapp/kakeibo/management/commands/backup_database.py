@@ -3,6 +3,7 @@ import os
 import subprocess
 
 import boto3
+from botocore.config import Config
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
@@ -80,6 +81,13 @@ class Command(BaseCommand):
             aws_access_key_id=settings.BACKUP_S3_ACCESS_KEY,
             aws_secret_access_key=settings.BACKUP_S3_SECRET_KEY,
             region_name=settings.BACKUP_S3_REGION,
+            # OCI Object StorageのS3互換APIはchunked encodingのPutObjectに
+            # 対応していないため、botocore 1.36+のデフォルト（チェックサム付与に
+            # よるchunked encoding化）を無効化する。
+            config=Config(
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            ),
         )
 
     def _apply_retention(self, client, prefix, keep_count):
