@@ -1,0 +1,65 @@
+========================================
+カテゴリ・決済手段・口座マスタ初期登録
+実行日時: 2026-09-06
+対象サーバ: kakeibo-web (namespace: kakeibo)
+========================================
+
+## 1. 登録前の件数確認
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "from kakeibo.models import Category, PaymentMethod, Account; print(Category.objects.count(), PaymentMethod.objects.count(), Account.objects.count())"
+21 objects imported automatically (use -v 2 for details).
+
+0 0 0
+
+## 2. マスタデータ投入
+
+$ cat seed_master_data.py | ssh seiya@217.142.230.83 "kubectl exec -i -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell"
+21 objects imported automatically (use -v 2 for details).
+
+created: {'category': 19, 'payment_method': 5, 'account': 6}
+category_count: 19
+payment_method_count: 5
+account_count: 6
+
+## 3. 登録内容の確認
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "..."
+21 objects imported automatically (use -v 2 for details).
+
+expense 食費・日用雑貨 60000 True
+expense 外食 20000 True
+expense 水道・光熱 20000 True
+expense 通信 15000 True
+expense 交通 13000 True
+expense お小遣い 60000 True
+expense 娯楽 35000 True
+expense 美容院 7000 True
+expense 衣服 18000 True
+expense 医療・保険 10000 True
+expense 住宅 80000 True
+expense マッサージ 5000 True
+expense その他 None True
+expense 対象外 None False
+expense 旅行 None True
+expense クルマ None True
+income 給与 None True
+income 賞与 None True
+income 副業 None True
+PM 楽天カード
+PM 楽天ペイ
+PM 楽天ペイ(オンライン)
+PM 現金
+PM 振替
+AC 横浜銀行 bank
+AC 楽天銀行 bank
+AC 楽天カード other
+AC 楽天証券 securities
+AC 楽天ペイ emoney
+AC 現金 cash
+
+========================================
+## まとめ
+
+対応Issue: #53
+カテゴリ19件（支出16件・収入3件）、決済手段5件、口座6件を本番DBへ登録した。
+登録前は全マスタ0件であり、全件が新規作成（重複なし）であることを確認済み。
