@@ -82,11 +82,56 @@ u = User.objects.create_user(email='aibdlnew1.sn@gmail.com', display_name='Seiya
 
 aibdlnew1.work@gmail.com（role: admin）のUserは、管理者用として引き続き有効のまま残した。
 
+## 8. マスタデータ未登録の発見・テストデータでの検証・削除
+
+aibdlnew1.sn@gmail.comでログイン後、取引登録画面のCategory/Payment methodの選択肢が
+空でPayment methodの入力ができなかった。本番DBを確認したところ、Category /
+PaymentMethod / Accountがいずれも0件（マスタデータ未登録）だった。
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "
+from kakeibo.models import Category, PaymentMethod, Account
+print('category_count:', Category.objects.count())
+print('payment_method_count:', PaymentMethod.objects.count())
+print('account_count:', Account.objects.count())
+"
+category_count: 0
+payment_method_count: 0
+account_count: 0
+
+マスタ管理はDjango管理サイト（/kakeibo/admin/）で行う設計（構築手順書04）だが、
+Django管理サイトに入れるのはrole=adminのユーザーのみ（models.pyのis_staff判定）。
+aibdlnew1.sn@gmail.comはrole=generalのままとする方針のため、実際のカテゴリ・決済手段の
+登録は別途ユーザーがDjango管理サイトから行う想定とし、ここではIssue #47の検証を進めるため
+最小限のテストデータ（カテゴリ「テスト」・決済手段「テスト」）を追加した。
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "
+from kakeibo.models import Category, PaymentMethod
+c = Category.objects.create(name='テスト', category_type=Category.CategoryType.EXPENSE)
+p = PaymentMethod.objects.create(name='テスト')
+"
+
+このテストデータを使い、取引登録・取引一覧・ダッシュボード・資産残高の各画面表示を確認できた
+（Issue #47のチェック項目はすべて完了）。確認後、テストデータ（取引・カテゴリ「テスト」・
+決済手段「テスト」）を削除し、本番DBをクリーンな状態に戻した。
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "
+from kakeibo.models import Transaction, Category, PaymentMethod
+Transaction.objects.filter(counterpart='test店舗').delete()
+Category.objects.filter(name='テスト').delete()
+PaymentMethod.objects.filter(name='テスト').delete()
+"
+deleted transactions: 1
+deleted categories: 1
+deleted payment_methods: 1
+
 ========================================
 ## まとめ
 
 GOOGLE_OAUTH_CLIENT_ID/SECRETをkakeibo-web（Webアプリケーション種別）のものに更新し、
 Kubernetes Secretへの反映・Pod再起動まで完了した。あわせて、本番DBの事前登録ユーザーに
-kakeibo利用者本来のアカウント（aibdlnew1.sn@gmail.com）が未登録だった誤りを修正し、
-一般ユーザーとして追加した。ブラウザでの実地確認（Issue #47）は別途ユーザーが実施する。
+kakeibo利用者本来のアカウント（aibdlnew1.sn@gmail.com）が未登録だった誤りを修正して
+一般ユーザーとして追加し、マスタデータ（カテゴリ・決済手段）が未登録だった問題もテスト
+データで検証後に解消した。Issue #47のブラウザ実地確認（ログイン・取引一覧・取引登録・
+ダッシュボード・資産残高）はすべて完了した。実際のカテゴリ・決済手段・口座の登録は、
+role=adminのアカウントでDjango管理サイト（/kakeibo/admin/）から別途行う必要がある。
 ========================================
