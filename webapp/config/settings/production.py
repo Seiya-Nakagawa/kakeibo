@@ -15,6 +15,12 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # （k8s/ingress.yamlのrewrite-target）ため、Django側は付与のみを担う。
 FORCE_SCRIPT_NAME = env("FORCE_SCRIPT_NAME", default="/kakeibo")
 
+# STATIC_URLをFORCE_SCRIPT_NAME起点の絶対パスにする。base.pyの相対パス（"static/"）の
+# ままだと、ページの階層が深いURL（例: /kakeibo/admin/login/）で相対解決の基準が
+# ずれてCSS/画像が404になる。WhiteNoiseMiddleware側はFORCE_SCRIPT_NAMEのプレフィックスを
+# 自動的に除去して実際のリクエストパスと突き合わせるため、ここでの絶対パス化と整合する。
+STATIC_URL = f"{FORCE_SCRIPT_NAME}/static/"
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
