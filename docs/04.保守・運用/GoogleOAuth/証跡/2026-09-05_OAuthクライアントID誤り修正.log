@@ -58,10 +58,35 @@ deployment "kakeibo-web" successfully rolled out
 $ kubectl get secret kakeibo-secrets -n kakeibo -o jsonpath='{.data.GOOGLE_OAUTH_CLIENT_ID}' | base64 -d と期待値の比較
 MATCH
 
+## 7. 事前登録ユーザーの誤りを確認・修正
+
+クライアントID修正後の確認の過程で、本番DBの事前登録ユーザー（kakeibo.User、
+pre_social_loginでログイン可否を判定するテーブル）に、kakeibo利用者本来のアカウント
+（aibdlnew1.sn@gmail.com）ではなく、Google Cloud Console/システム管理者アカウント
+（aibdlnew1.work@gmail.com）が登録されている誤りを発見した。
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "
+from kakeibo.models import User
+print('sn_exists_active:', User.objects.filter(email__iexact='aibdlnew1.sn@gmail.com', is_active=True).exists())
+print('work_exists_active:', User.objects.filter(email__iexact='aibdlnew1.work@gmail.com', is_active=True).exists())
+"
+sn_exists_active: False
+work_exists_active: True
+
+aibdlnew1.sn@gmail.comをUserとして追加した（display_name: Seiya、role: general）。
+
+$ kubectl exec -n kakeibo deploy/kakeibo-web -c web -- python manage.py shell -c "
+from kakeibo.models import User
+u = User.objects.create_user(email='aibdlnew1.sn@gmail.com', display_name='Seiya', role=User.Role.GENERAL)
+"
+
+aibdlnew1.work@gmail.com（role: admin）のUserは、管理者用として引き続き有効のまま残した。
+
 ========================================
 ## まとめ
 
 GOOGLE_OAUTH_CLIENT_ID/SECRETをkakeibo-web（Webアプリケーション種別）のものに更新し、
-Kubernetes Secretへの反映・Pod再起動まで完了した。ブラウザでの実地確認（Issue #47）は
-別途ユーザーが実施する。
+Kubernetes Secretへの反映・Pod再起動まで完了した。あわせて、本番DBの事前登録ユーザーに
+kakeibo利用者本来のアカウント（aibdlnew1.sn@gmail.com）が未登録だった誤りを修正し、
+一般ユーザーとして追加した。ブラウザでの実地確認（Issue #47）は別途ユーザーが実施する。
 ========================================
