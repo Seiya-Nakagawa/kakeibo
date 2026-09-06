@@ -245,7 +245,7 @@ class ImportTransactionsTests(TestCase):
 
         result = import_transactions(path, self.user)
 
-        self.assertEqual((result.created, result.updated), (2, 0))
+        self.assertEqual((result.created, result.skipped_duplicate), (2, 0))
         self.assertEqual(result.skipped_fixed, 1)
         self.assertEqual(Transaction.objects.count(), 2)
 
@@ -283,7 +283,7 @@ class ImportTransactionsTests(TestCase):
         self.assertEqual(transaction_obj.dedup_hash, expected_hash)
         self.assertNotEqual(transaction_obj.dedup_hash, "gas-original-hash")
 
-    def test_rerun_is_idempotent(self):
+    def test_rerun_is_idempotent_for_auto_rows(self):
         path = self._csv(
             [
                 [
@@ -302,7 +302,99 @@ class ImportTransactionsTests(TestCase):
         import_transactions(path, self.user)
         result = import_transactions(path, self.user)
 
-        self.assertEqual((result.created, result.updated), (0, 1))
+        self.assertEqual((result.created, result.skipped_duplicate), (0, 1))
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_rerun_is_idempotent_for_identical_manual_rows(self):
+        path = self._csv(
+            [
+                [
+                    "2026-08-10",
+                    "1000",
+                    "セブンイレブン",
+                    "楽天ペイ",
+                    "食費",
+                    "テスト",
+                    "manual",
+                    "h",
+                ]
+            ]
+        )
+
+        import_transactions(path, self.user)
+        result = import_transactions(path, self.user)
+
+        self.assertEqual((result.created, result.skipped_duplicate), (0, 1))
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_manual_rows_with_same_amount_shop_date_but_different_memo_are_both_kept(
+        self,
+    ):
+        # 実データで確認された事例: 同日・同額・同店舗・同決済手段でもメモが異なる
+        # 別々の取引が存在するため、4項目一致だけで統合してはならない。
+        path = self._csv(
+            [
+                [
+                    "2026-08-10",
+                    "200",
+                    "朝市",
+                    "楽天ペイ",
+                    "食費",
+                    "たまご",
+                    "manual",
+                    "h1",
+                ],
+                [
+                    "2026-08-10",
+                    "200",
+                    "朝市",
+                    "楽天ペイ",
+                    "食費",
+                    "玉ねぎ",
+                    "manual",
+                    "h2",
+                ],
+            ]
+        )
+
+        result = import_transactions(path, self.user)
+
+        self.assertEqual((result.created, result.skipped_duplicate), (2, 0))
+        self.assertEqual(Transaction.objects.count(), 2)
+
+    def test_auto_rows_with_same_dedup_hash_within_one_batch_collapse_to_one(self):
+        # compute_dedup_hashは日付・金額・店舗名・決済手段の4項目のみのハッシュであり、
+        # メモ・カテゴリは含まれない。この4項目が一致する行は、日次メール取込バッチ
+        # （import_transactions_from_mail）と同じ「既にdedup_hashが存在すれば作成しない」
+        # 規則により1件に収束する。これは新規の制約ではなく既存アプリの挙動を踏襲したもの。
+        path = self._csv(
+            [
+                [
+                    "2026-08-10",
+                    "200",
+                    "セブンイレブン",
+                    "楽天ペイ",
+                    "食費",
+                    "",
+                    "auto",
+                    "h1",
+                ],
+                [
+                    "2026-08-10",
+                    "200",
+                    "セブンイレブン",
+                    "楽天ペイ",
+                    "食費",
+                    "",
+                    "auto",
+                    "h2",
+                ],
+            ]
+        )
+
+        result = import_transactions(path, self.user)
+
+        self.assertEqual((result.created, result.skipped_duplicate), (1, 1))
         self.assertEqual(Transaction.objects.count(), 1)
 
     def test_missing_category_raises_and_rolls_back(self):

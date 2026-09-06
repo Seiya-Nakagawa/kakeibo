@@ -15,8 +15,18 @@ CSVはGoogleスプレッドシートから「ファイル > ダウンロード >
 移行完了後に管理画面で追加する。
 
 生データの重複排除キー（H列）はGAS側の生成方式がDjango側（compute_dedup_hash）と異なるため
-移行時には使用せず、Django側の方式で再計算する。これによりTransaction.dedup_hashを一意キーと
-した冪等な再実行（要件4.10.2）が可能になる。
+移行時には使用しない。冪等性の担保方法は登録方法によって異なる。
+
+    auto（メール取込分）  : Django側のcompute_dedup_hashを再計算し、日次メール取込バッチ
+                            （import_transactions_from_mailコマンド）と同じ「dedup_hashが
+                            既に存在すれば作成しない」方式で判定する。
+    manual（手動入力分）  : 手動入力はWeb入力時も元々dedup_hashを持たない（重複チェックを
+                            行わない）仕様のため、日付・金額・店舗名・カテゴリ・決済手段・
+                            メモの全項目一致を冪等性の判定に用いる。
+
+日付・金額・店舗名・決済手段が偶然一致する別々の取引（例: 同日に同じ店で同額の買い物を
+複数回した場合）が実データに存在するため、これらの4項目だけをキーにした重複統合は
+行わない（実在する取引を誤って1件に統合してしまう）。
 """
 
 import csv
@@ -85,9 +95,9 @@ class UpsertResult:
 @dataclass
 class TransactionImportResult:
     created: int = 0
-    updated: int = 0
+    skipped_duplicate: int = 0
     skipped_fixed: int = 0
-    dedup_hashes: set = field(default_factory=set)
+    transaction_ids: set = field(default_factory=set)
     monthly_csv_totals: dict = field(
         default_factory=dict
     )  # "YYYY-MM" -> (count, total)
@@ -324,28 +334,17 @@ def import_transactions(csv_path: str, imported_by: User) -> TransactionImportRe
             memo,
             source,
         ) in parsed_rows:
-            dedup_hash = compute_dedup_hash(
-                transaction_date, amount, shop, payment_method.name
+            _import_one_transaction(
+                result,
+                transaction_date,
+                amount,
+                shop,
+                category,
+                payment_method,
+                memo,
+                source,
+                imported_by,
             )
-            _, created = Transaction.objects.update_or_create(
-                dedup_hash=dedup_hash,
-                defaults={
-                    "transaction_type": Transaction.TransactionType.EXPENSE,
-                    "transaction_date": transaction_date,
-                    "amount": amount,
-                    "counterpart": shop,
-                    "category": category,
-                    "payment_method": payment_method,
-                    "memo": memo,
-                    "source": source,
-                    "created_by": imported_by,
-                },
-            )
-            result.dedup_hashes.add(dedup_hash)
-            if created:
-                result.created += 1
-            else:
-                result.updated += 1
 
     result.monthly_csv_totals = {
         month: tuple(counts) for month, counts in csv_monthly.items()
@@ -353,10 +352,52 @@ def import_transactions(csv_path: str, imported_by: User) -> TransactionImportRe
     return result
 
 
+def _import_one_transaction(
+    result: TransactionImportResult,
+    transaction_date,
+    amount,
+    shop,
+    category,
+    payment_method,
+    memo,
+    source,
+    imported_by: User,
+) -> None:
+    common_fields = {
+        "transaction_type": Transaction.TransactionType.EXPENSE,
+        "transaction_date": transaction_date,
+        "amount": amount,
+        "counterpart": shop,
+        "category": category,
+        "payment_method": payment_method,
+        "memo": memo,
+        "source": source,
+        "created_by": imported_by,
+    }
+    if source == Transaction.Source.MAIL:
+        dedup_hash = compute_dedup_hash(
+            transaction_date, amount, shop, payment_method.name
+        )
+        existing = Transaction.objects.filter(dedup_hash=dedup_hash).first()
+        create_fields = {**common_fields, "dedup_hash": dedup_hash}
+    else:
+        existing = Transaction.objects.filter(**common_fields).first()
+        create_fields = common_fields
+
+    if existing is not None:
+        result.skipped_duplicate += 1
+        result.transaction_ids.add(existing.id)
+        return
+
+    created_transaction = Transaction.objects.create(**create_fields)
+    result.transaction_ids.add(created_transaction.id)
+    result.created += 1
+
+
 def verify_transactions(result: TransactionImportResult) -> list[MonthlyVerification]:
     """要件4.10.3: 月次の件数・合計金額がCSVとDBで一致することを検証する。"""
     db_rows = (
-        Transaction.objects.filter(dedup_hash__in=result.dedup_hashes)
+        Transaction.objects.filter(id__in=result.transaction_ids)
         .annotate(month=TruncMonth("transaction_date"))
         .values("month")
         .annotate(count=Count("id"), total=Sum("amount"))

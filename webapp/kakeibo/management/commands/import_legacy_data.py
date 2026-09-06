@@ -65,7 +65,7 @@ class Command(BaseCommand):
         result = import_transactions(options["transactions"], imported_by)
         self.stdout.write(
             self.style.SUCCESS(
-                f"生データ: 新規{result.created}件、更新{result.updated}件、"
+                f"生データ: 新規{result.created}件、重複スキップ{result.skipped_duplicate}件、"
                 f"固定費行スキップ{result.skipped_fixed}件"
             )
         )
