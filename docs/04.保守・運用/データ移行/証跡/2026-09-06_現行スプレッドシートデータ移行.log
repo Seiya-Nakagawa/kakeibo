@@ -1,0 +1,117 @@
+========================================
+現行スプレッドシートからのデータ移行（店舗ルール・固定費・生データ）
+実行日時: 2026-09-06
+対象サーバ: kakeibo-web (namespace: kakeibo)
+========================================
+
+## 1. 概要
+
+対応Issue: #31
+PR #57（import_legacy_dataコマンド実装）をマージ後、現行GASスプレッドシートから
+エクスポートしたCSV（店舗ルール・固定費マスタ・生データ）を本番DBへ一括投入した。
+カテゴリ・決済手段・口座マスタはIssue #53で登録済みのため、本作業では対象外とした。
+
+## 2. CSVのエクスポートと事前精査
+
+ユーザーがスプレッドシートから以下4ファイルをCSVエクスポートした。
+
+- 家計簿 - 月次集計.csv（カテゴリマスタ相当。今回は未使用）
+- 家計簿 - 店舗ルール.csv（105行）
+- 家計簿 - 固定費マスタ.csv（2行）
+- 家計簿 - 生データ.csv（367行）
+
+投入前にローカルで内容を精査し、以下の問題を発見した。ユーザーに確認のうえ、
+生データCSVを直接修正して対応した。
+
+| # | 内容 | 対応 |
+| - | ---- | ---- |
+| 1 | 「岡崎楽の湯」1900円(2026-08-23,現金,manual)のカテゴリがプレースホルダ値「カテゴリ」のままだった | ユーザー確認の上「娯楽」に修正 |
+| 2 | 「テスト店舗」100円×2件(2026-06-28,現金,manual,メモ「APIテスト登録」)は開発時のテストデータと判断 | ユーザー確認の上、両方とも除外 |
+| 3 | 「ハローサイクリング」200円×2件(2026-04-19,楽天カード,旅行)が全項目完全一致 | ユーザー確認の上1件に統合 |
+| 4 | 「佐野SA下り線」2874円×2件(2026-04-29,楽天ペイ,旅行)が全項目完全一致 | ユーザー確認の上1件に統合 |
+| 5 | 「モバイルパスモチャージ」3000円×3件(2026-06-06,楽天カード,交通)が全項目完全一致 | ユーザー確認の上1件に統合（2件削除） |
+| 6 | 固定費マスタ「住宅ローン」の決済手段が「横浜銀行」だが、決済手段マスタには存在せず口座マスタにのみ存在 | ユーザー確認の上、決済手段マスタに既存の「振替」に変更 |
+
+修正後の生データCSVは367行→361行（ヘッダー除く）、合計金額1,174,185円。
+
+また、精査の過程で以下の実データを確認し、import_legacy_dataコマンドの
+dedup_hash方式に不具合（日付・金額・店舗名・決済手段が偶然一致する別々の実取引を
+誤って1件に統合してしまう）を発見したため、PR #57に修正コミットを追加した
+（PRコメント参照）。
+
+## 3. 本番デプロイ
+
+$ ./deploy-oci.sh
+
+- Dockerイメージをlinux/arm64向けにビルド
+- OCIホストのcontainerdへ転送・ロード
+- Kubernetesマニフェスト適用
+- kakeibo-web Podのローリング再起動（新Pod: kakeibo-web-5c84d5d9fd-t6hsp）
+- マイグレーション実行（適用対象なし）
+
+## 4. 投入前の件数確認
+
+$ kubectl exec -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- python manage.py shell -c "..."
+
+Category: 19
+PaymentMethod: 5
+StoreRule: 0
+FixedCost: 0
+Transaction: 0
+
+## 5. CSVのPodへの転送
+
+$ cat "家計簿 - 店舗ルール.csv" | ssh seiya@217.142.230.83 "kubectl exec -i -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- sh -c 'cat > /tmp/kakeibo-migration/store_rules.csv'"
+$ cat "家計簿 - 固定費マスタ.csv" | ssh seiya@217.142.230.83 "kubectl exec -i -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- sh -c 'cat > /tmp/kakeibo-migration/fixed_costs.csv'"
+$ cat "家計簿 - 生データ.csv" | ssh seiya@217.142.230.83 "kubectl exec -i -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- sh -c 'cat > /tmp/kakeibo-migration/transactions.csv'"
+
+転送後、ローカルファイルとのバイト数一致（165 / 4,295 / 54,930 バイト）を確認した。
+
+## 6. データ投入の実行
+
+$ kubectl exec -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- python manage.py import_legacy_data \
+    --store-rules /tmp/kakeibo-migration/store_rules.csv \
+    --fixed-costs /tmp/kakeibo-migration/fixed_costs.csv \
+    --transactions /tmp/kakeibo-migration/transactions.csv \
+    --imported-by aibdlnew1.work@gmail.com
+
+店舗ルール: 新規105件、更新0件
+固定費: 新規2件、更新0件
+生データ: 新規361件、重複スキップ0件、固定費行スキップ0件
+  2026-03: 件数 CSV=1 DB=1 / 合計 CSV=490円 DB=490円
+  2026-04: 件数 CSV=110 DB=110 / 合計 CSV=286568円 DB=286568円
+  2026-05: 件数 CSV=89 DB=89 / 合計 CSV=262812円 DB=262812円
+  2026-06: 件数 CSV=50 DB=50 / 合計 CSV=293842円 DB=293842円
+  2026-07: 件数 CSV=50 DB=50 / 合計 CSV=122740円 DB=122740円
+  2026-08: 件数 CSV=59 DB=59 / 合計 CSV=200723円 DB=200723円
+  2026-09: 件数 CSV=2 DB=2 / 合計 CSV=7010円 DB=7010円
+月次の件数・合計金額が一致することを確認しました
+
+## 7. 投入後の件数・合計金額確認
+
+$ kubectl exec -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- python manage.py shell -c "..."
+
+StoreRule: 105
+FixedCost: 2
+Transaction: 361
+Transaction合計金額: 1174185
+
+要件4.10.3の件数・月次合計金額の一致検証は、コマンド実行時の自動検証（上記6.）と
+本確認により満たされていることを確認した。
+
+## 8. 後片付け
+
+$ kubectl exec -n kakeibo kakeibo-web-5c84d5d9fd-t6hsp -c web -- rm -rf /tmp/kakeibo-migration
+
+Pod内に転送した一時CSVを削除した。ローカルの `csv/` ディレクトリはユーザーの指示により
+本作業完了後に削除する。
+
+========================================
+## まとめ
+
+対応Issue: #31
+店舗ルール105件、固定費2件、生データ（取引）361件を本番DBへ投入した。
+投入前に発見したCSVのデータ品質問題（不正カテゴリ1件、テストデータ2件、完全重複行5件、
+決済手段マスタ不一致1件）はユーザー確認の上で修正し、移行対象から除外・統合した。
+移行後の件数・月次合計金額（1,174,185円）はCSVとDBで完全に一致することを確認した。
+========================================
