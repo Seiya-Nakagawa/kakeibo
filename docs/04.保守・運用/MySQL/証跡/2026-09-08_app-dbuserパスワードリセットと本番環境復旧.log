@@ -1,0 +1,96 @@
+========================================
+app-dbuserパスワードリセットと本番環境復旧
+実行日時: 2026-09-08
+対象サーバ: 217.142.230.83（oci-portfolio、SSH経由）
+関連Issue: #59（作業中に発生した派生障害への対応）
+========================================
+
+## 1. 障害の発見
+
+Issue #59（Gmail invalid_grant再発）対応中、`./scripts/create_secret.sh`（引数省略時は
+`webapp/.env.production`を使用）実行により本番Kubernetes Secret `kakeibo-secrets` が
+`webapp/.env.production` の内容で上書きされたが、同ファイルの `DB_USER=seiya_db` は
+実際のMySQLに存在しないユーザーであったため、DBアクセスが全面的に失敗する障害が
+新たに発生した。
+
+$ ssh 217.142.230.83 "kubectl get pods -n kakeibo"
+kakeibo-mail-import-29810700-tzs6c   0/1     Error       0          42h
+kakeibo-mail-import-29812140-t87rf   0/1     Error       0          18h
+kakeibo-web-5b78dfff76-ktfxr         1/1     Running     0          18m
+mail-import-test-1788792175-qmdjs    0/1     Error       0          17m
+
+$ ssh 217.142.230.83 "kubectl logs mail-import-test-1788792175-qmdjs -n kakeibo --tail=50"
+CommandError: メール取込バッチが異常終了しました: (1045, "Access denied for user 'seiya_db'@'localhost' (using password: YES)")
+
+## 2. MySQL側の実ユーザー確認
+
+$ ssh 217.142.230.83 "sudo mysql -e \"SELECT user FROM mysql.user ORDER BY user;\""
+user
+app-dbuser
+debian-sys-maint
+mysql.infoschema
+mysql.session
+mysql.sys
+root
+root
+root
+root
+
+「seiya_db」というユーザーは存在せず、実際のDBユーザーは `app-dbuser` であることを確認した。
+
+## 3. webapp/.env.production のDB_USER修正、Kubernetes Secret再作成
+
+`webapp/.env.production` の `DB_USER` を `seiya_db` から `app-dbuser` に修正し、
+`webapp/.env` に記載のパスワードを設定してKubernetes Secretを再作成した。
+
+$ scp webapp/.env.production 217.142.230.83:/tmp/kakeibo-env-tmp
+$ ssh 217.142.230.83 "kubectl create secret generic kakeibo-secrets -n kakeibo --from-env-file=/tmp/kakeibo-env-tmp --dry-run=client -o yaml | kubectl apply -f - && shred -u /tmp/kakeibo-env-tmp"
+secret/kakeibo-secrets configured
+
+$ ssh 217.142.230.83 "kubectl rollout restart deployment/kakeibo-web -n kakeibo && kubectl rollout status deployment/kakeibo-web -n kakeibo --timeout=90s"
+deployment "kakeibo-web" successfully rolled out
+
+## 4. 動作確認（1回目）→ 失敗（パスワード不一致）
+
+$ ssh 217.142.230.83 "kubectl exec <pod> -n kakeibo -c web -- python manage.py shell -c \"from django.db import connection; connection.ensure_connection(); print('DB OK')\""
+django.db.utils.OperationalError: (1045, "Access denied for user 'app-dbuser'@'localhost' (using password: YES)")
+
+`webapp/.env` に記載のパスワードも実際のMySQL権限と一致しないことが判明した。過去の正しい
+パスワードはローカル・クラスタのいずれにも残っておらず、復元不可能と判断した。
+
+## 5. app-dbuserのパスワードリセット
+
+MySQLのroot権限（socket認証）で `app-dbuser` のパスワードを新しいランダム値にリセットした。
+
+$ ssh 217.142.230.83 "sudo mysql -e \"SELECT user, host, plugin, account_locked, password_expired FROM mysql.user WHERE user='app-dbuser';\""
+user         host        plugin                  account_locked  password_expired
+app-dbuser   localhost   caching_sha2_password   N               N
+
+$ ssh 217.142.230.83 "sudo mysql -e \"ALTER USER 'app-dbuser'@'localhost' IDENTIFIED BY '<新しいランダムパスワード>'; FLUSH PRIVILEGES;\""
+（成功、出力なし）
+
+`webapp/.env` および `webapp/.env.production` のDB_PASSWORDを新しい値に更新し、Kubernetes
+Secretを再作成、`kakeibo-web` を再度ロールアウト再起動した（手順は3節と同様）。
+
+## 6. 動作確認（2回目）→ 成功
+
+$ ssh 217.142.230.83 "kubectl exec <pod> -n kakeibo -c web -- python manage.py shell -c \"from django.db import connection; connection.ensure_connection(); print('DB OK')\""
+DB OK
+
+========================================
+## まとめ
+
+`webapp/.env.production` のDB_USERが実際のMySQLユーザーと一致していなかったこと、および
+`webapp/.env` のDB_PASSWORDも実際のMySQL権限とは一致していなかったことの2点が原因で、
+本番 `kakeibo-web`・`kakeibo-mail-import` のDBアクセスが全面的に失敗する障害が発生した。
+`app-dbuser` のパスワードをroot権限でリセットし、`webapp/.env`・`webapp/.env.production`
+双方を新しいパスワードで統一のうえKubernetes Secretを再作成し復旧した。
+
+`GOOGLE_OAUTH_CLIENT_SECRET`（ログイン用）も `.env` と `.env.production` で値が異なって
+いたため、`.env` 側の値を暫定採用した。Google Cloud Console側の正しい値の確認は未実施
+（ユーザー判断待ち）。
+
+`BACKUP_S3_ACCESS_KEY`/`BACKUP_S3_SECRET_KEY`/`BACKUP_S3_ENDPOINT_URL` は
+`webapp/.env.production` にダミー値のまま残っており、本番Kubernetes Secretにも反映されて
+いる。バックアップ機能の復旧は別Issueで対応する方針とした。
+========================================

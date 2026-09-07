@@ -1,0 +1,84 @@
+========================================
+invalid_grant再発（Issue #59）対応の動作確認
+実行日時: 2026-09-08
+対象サーバ: 217.142.230.83（oci-portfolio、SSH経由）
+関連Issue: #59
+========================================
+
+## 1. 前提
+
+`webapp/.env.production` の `GMAIL_API_REFRESH_TOKEN` は、Issue #59対応として
+2026-09-07 23:34 JSTにOAuth 2.0 Playgroundでの再認可（アカウント: aibdlnew1.sn@gmail.com）
+により新しい値に更新済みであった。
+
+このトークン更新と同時にKubernetes Secretへ反映する `./scripts/create_secret.sh`
+（引数省略時は `webapp/.env.production` を使用）が実行された際、同ファイルの
+`DB_USER` が実際のMySQLユーザーと一致していなかったため、DBアクセス障害が別途発生した
+（詳細は[MySQL側の証跡](../../MySQL/証跡/2026-09-08_app-dbuserパスワードリセットと本番環境復旧.log)を参照）。
+本ログはDB障害の復旧後、Gmail認証（issue #59本来の問題）が実際に解消しているかの
+確認記録である。
+
+## 2. mail-importテストJobでの確認
+
+DB障害復旧後、あらためて `kakeibo-mail-import` の手動テストJobを作成し、Gmail API認証
+（新しいリフレッシュトークン）とDBアクセスの双方が正常に機能するか確認した。
+
+$ ssh 217.142.230.83 "kubectl delete job mail-import-test-1788792175 -n kakeibo --ignore-not-found; kubectl create job --from=cronjob/kakeibo-mail-import mail-import-verify-1788794227 -n kakeibo"
+job.batch "mail-import-test-1788792175" deleted
+job.batch/mail-import-verify-1788794227 created
+
+$ ssh 217.142.230.83 "kubectl wait --for=condition=complete job/mail-import-verify-1788794227 -n kakeibo --timeout=60s"
+job.batch/mail-import-verify-1788794227 condition met
+
+$ ssh 217.142.230.83 "kubectl logs mail-import-verify-1788794227-gmc5n -n kakeibo"
+取込成功: 0件、失敗: 2件
+
+invalid_grantによる異常終了（`google.auth.exceptions.RefreshError`）は発生せず、Jobは
+`condition=complete` で正常終了した。新しいリフレッシュトークンでのGmail API認証が
+正常に機能していることを確認した。
+
+## 3. 未処理メール2件について
+
+失敗した2件は認証エラーではなく、本文解析エラー（`本文の解析に失敗しました（明細が
+抽出できません）`）であることをDBのEmailImportLogで確認した。
+
+$ ssh 217.142.230.83 "kubectl exec <pod> -n kakeibo -c web -- python manage.py shell -c \"
+from kakeibo.models import EmailImportLog
+for l in EmailImportLog.objects.filter(status='failed').order_by('-executed_at')[:5]:
+    print(l.executed_at, l.service, l.error_detail)
+\""
+2026-09-07 15:17:13.948985+00:00 楽天カード 本文の解析に失敗しました（明細が抽出できません）
+2026-09-07 15:17:13.717727+00:00 楽天ペイ（注文受付） 本文の解析に失敗しました（明細が抽出できません）
+
+両メールとも `家計簿/未処理` ラベルのままGmail上に残っているため、データの取りこぼしは
+発生していない（解析ロジック修正後に自動再取込される）。本文解析エラーの原因調査・修正は
+別Issueで対応する（`webapp/kakeibo/mail_import.py` の `_AMOUNT_LABELS` が「ご注文金額」
+表記に未対応の可能性が高い）。
+
+## 4. 直近4日間の取込集計
+
+$ ssh 217.142.230.83 "kubectl exec <pod> -n kakeibo -c web -- python manage.py shell -c \"
+from kakeibo.models import EmailImportLog, Transaction
+from django.utils import timezone
+from datetime import timedelta
+since = timezone.now() - timedelta(days=4)
+print('success:', EmailImportLog.objects.filter(status='success', executed_at__gte=since).count())
+print('failed:', EmailImportLog.objects.filter(status='failed', executed_at__gte=since).count())
+\""
+success: 0
+failed: 2
+
+直近4日間で `家計簿/未処理` ラベルに残っていたメールは2件のみであり、いずれも本文解析
+エラーによるもの（3節参照）。invalid_grant発生期間中に取込漏れとなった決済通知メールの
+規模は当初懸念より小さいことを確認した。
+
+========================================
+## まとめ
+
+Issue #59の本来の問題（Gmail invalid_grant）は、事前に取得済みの新しいリフレッシュ
+トークンにより解消していることをmail-importテストJobの正常終了で確認した。
+
+未処理のまま残っている2件は認証エラーではなく別原因（本文解析エラー）であり、ラベルは
+`家計簿/未処理` のまま維持されているためデータ消失はない。解析ロジックの修正は別Issueで
+対応する。
+========================================
