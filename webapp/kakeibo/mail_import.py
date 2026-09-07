@@ -69,7 +69,7 @@ class ParsedItem:
 
 _DATE_LABELS = r"(?:ご)?利用日時?|注文日"
 _STORE_LABELS = r"(?:ご)?利用先|(?:ご)?利用店舗|加盟店名"
-_AMOUNT_LABELS = r"(?:ご)?利用金額|お支払い?金額"
+_AMOUNT_LABELS = r"(?:ご)?利用金額|お支払い?金額|ご注文金額"
 
 _ITEM_PATTERN = re.compile(
     rf"(?:{_DATE_LABELS})[:：]\s*(?P<date>\d{{4}}[/年]\d{{1,2}}[/月]\d{{1,2}})日?"
