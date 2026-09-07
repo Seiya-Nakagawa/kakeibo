@@ -27,6 +27,13 @@ RAKUTEN_PAY_ONLINE_BODY = """楽天ペイ（オンライン決済）をご利用
 ■お支払い金額：2,500円
 """
 
+RAKUTEN_PAY_ORDER_BODY = """楽天ペイ（注文受付）でご注文を承りました。
+
+■注文日：2026/08/10
+■加盟店名：〇〇ショップ
+■ご注文金額：3,000円
+"""
+
 RAKUTEN_CARD_BODY = """楽天カードのご利用がありました。
 
 利用日:2026/08/01
@@ -46,6 +53,13 @@ class IdentifyServiceTests(SimpleTestCase):
         )
         self.assertEqual(rule.service, "楽天ペイ（アプリ決済）")
         self.assertEqual(rule.payment_method_name, "楽天ペイ")
+
+    def test_identifies_rakuten_pay_order_reception(self):
+        rule = identify_service(
+            "order@checkout.rakuten.co.jp", "【楽天ペイ】楽天ペイ 注文受付のお知らせ"
+        )
+        self.assertEqual(rule.service, "楽天ペイ（注文受付）")
+        self.assertEqual(rule.payment_method_name, "楽天ペイ(オンライン)")
 
     def test_identifies_rakuten_card(self):
         rule = identify_service(
@@ -68,6 +82,10 @@ class ParseMailBodyTests(SimpleTestCase):
     def test_parses_single_item_online_payment(self):
         items = parse_mail_body(RAKUTEN_PAY_ONLINE_BODY)
         self.assertEqual(items, [ParsedItem(date(2026, 8, 10), 2500, "〇〇ショップ")])
+
+    def test_parses_single_item_order_reception(self):
+        items = parse_mail_body(RAKUTEN_PAY_ORDER_BODY)
+        self.assertEqual(items, [ParsedItem(date(2026, 8, 10), 3000, "〇〇ショップ")])
 
     def test_parses_multiple_items_card(self):
         items = parse_mail_body(RAKUTEN_CARD_BODY)
