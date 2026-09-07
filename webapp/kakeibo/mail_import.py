@@ -67,33 +67,71 @@ class ParsedItem:
     counterpart: str
 
 
-_DATE_LABELS = r"(?:ご)?利用日時?|注文日"
-_STORE_LABELS = r"(?:ご)?利用先|(?:ご)?利用店舗|加盟店名"
+_DATE_LABELS = r"(?:ご)?利用日時?|(?:ご)?注文日"
+_STORE_LABELS = r"(?:ご)?利用先|(?:ご)?利用店舗|加盟店名|ご利用サイト"
 _AMOUNT_LABELS = r"(?:ご)?利用金額|お支払い?金額|ご注文金額"
 
-_ITEM_PATTERN = re.compile(
-    rf"(?:{_DATE_LABELS})[:：]\s*(?P<date>\d{{4}}[/年]\d{{1,2}}[/月]\d{{1,2}})日?"
+_DATE_PATTERN = re.compile(
+    rf"(?:{_DATE_LABELS})[:：]\s*(?P<date>\d{{4}}[-/年]\d{{1,2}}[-/月]\d{{1,2}})日?"
     rf"(?:\s*\d{{1,2}}[:：]\d{{2}})?"
-    rf".*?(?:{_STORE_LABELS})[:：]\s*(?P<store>[^\r\n]+?)\s*[\r\n]"
-    rf".*?(?:{_AMOUNT_LABELS})[:：]\s*(?P<amount>[\d,]+)円",
-    re.DOTALL,
 )
+_STORE_PATTERN = re.compile(
+    rf"(?:{_STORE_LABELS})[:：]\s*(?P<store>[^\r\n]+?)\s*[\r\n]"
+)
+_AMOUNT_PATTERN = re.compile(rf"(?:{_AMOUNT_LABELS})[:：]\s*(?P<amount>[\d,]+)\s*円")
+
+_HTML_BLOCK_PATTERN = re.compile(
+    r"<(style|script)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL
+)
+_HTML_TAG_PATTERN = re.compile(r"<[^>]*>")
+
+
+def _strip_html(text: str) -> str:
+    """HTMLタグ混じりの本文からタグを除去する。
+
+    一部サービス（楽天ペイ「注文受付」等）はtext/plainパートに本来のプレーン
+    テキストではなくHTMLをそのまま格納して送信してくるため、解析前に除去する。
+    プレーンテキストの場合はタグを含まないため実質ノーオペレーション。
+    """
+    text = _HTML_BLOCK_PATTERN.sub("", text)
+    text = _HTML_TAG_PATTERN.sub(" ", text)
+    text = (
+        text.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+    )
+    return re.sub(r"[ \t]+", " ", text)
 
 
 def parse_mail_body(body: str) -> list[ParsedItem]:
     """メール本文から取引明細を抽出する（複数明細対応、要件4.1.2.5）。
 
     1通に複数明細を含む場合（楽天カード等）に対応するため、本文中に現れる
-    日付・利用先・金額のラベル付き記載を順に走査してすべて抽出する。
+    日付のラベル付き記載を区切りとして明細ブロックに分割し、各ブロック内から
+    利用先・金額を順不同で抽出する（サービスによって「利用先→金額」
+    「金額→利用先」のいずれの順で記載されるかが異なるため）。
     """
+    body = _strip_html(body)
+    date_matches = list(_DATE_PATTERN.finditer(body))
     items = []
-    for match in _ITEM_PATTERN.finditer(body):
-        year, month, day = re.split(r"[/年]", match.group("date"))
+    for index, date_match in enumerate(date_matches):
+        segment_end = (
+            date_matches[index + 1].start()
+            if index + 1 < len(date_matches)
+            else len(body)
+        )
+        segment = body[date_match.end() : segment_end]
+        store_match = _STORE_PATTERN.search(segment)
+        amount_match = _AMOUNT_PATTERN.search(segment)
+        if not store_match or not amount_match:
+            continue
+        year, month, day = re.split(r"[-/年]", date_match.group("date"))
         items.append(
             ParsedItem(
                 transaction_date=date(int(year), int(month), int(day)),
-                amount=int(match.group("amount").replace(",", "")),
-                counterpart=match.group("store").strip(),
+                amount=int(amount_match.group("amount").replace(",", "")),
+                counterpart=store_match.group("store").strip(),
             )
         )
     return items

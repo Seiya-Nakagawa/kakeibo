@@ -27,11 +27,14 @@ RAKUTEN_PAY_ONLINE_BODY = """楽天ペイ（オンライン決済）をご利用
 ■お支払い金額：2,500円
 """
 
-RAKUTEN_PAY_ORDER_BODY = """楽天ペイ（注文受付）でご注文を承りました。
-
-■注文日：2026/08/10
-■加盟店名：〇〇ショップ
-■ご注文金額：3,000円
+RAKUTEN_PAY_ORDER_BODY = """<html><body>
+<div>ご注文日：</div>
+<div>2026-08-10 12:34:56</div>
+<div>ご注文金額：</div>
+<div>3,000円</div>
+<div>ご利用サイト：</div>
+<div>〇〇ショップ</div>
+</body></html>
 """
 
 RAKUTEN_CARD_BODY = """楽天カードのご利用がありました。
@@ -43,6 +46,23 @@ RAKUTEN_CARD_BODY = """楽天カードのご利用がありました。
 利用日:2026/08/02
 利用先:イオン●●店
 利用金額:2,000円
+"""
+
+RAKUTEN_CARD_FAMILY_BODY = """カード利用のお知らせ(本人・家族会員ご利用分)
+
+■利用日: 2026/08/24
+■利用先: 楽天ペイ残高　チャージ
+■利用者: 家族
+■支払方法: 1回
+■利用金額: 11,115 円
+■支払月: 2026/09
+
+■利用日: 2026/08/24
+■利用先: 楽天キャッシュ　チャージ
+■利用者: 本人
+■支払方法: 1回
+■利用金額: 1,000 円
+■支払月: 2026/09
 """
 
 
@@ -67,6 +87,13 @@ class IdentifyServiceTests(SimpleTestCase):
         )
         self.assertEqual(rule.service, "楽天カード")
 
+    def test_identifies_rakuten_card_family_member(self):
+        rule = identify_service(
+            "info@mail.rakuten-card.co.jp",
+            "カード利用のお知らせ(本人・家族会員ご利用分)",
+        )
+        self.assertEqual(rule.service, "楽天カード")
+
     def test_unknown_sender_returns_none(self):
         self.assertIsNone(identify_service("unknown@example.com", "件名"))
 
@@ -86,6 +113,16 @@ class ParseMailBodyTests(SimpleTestCase):
     def test_parses_single_item_order_reception(self):
         items = parse_mail_body(RAKUTEN_PAY_ORDER_BODY)
         self.assertEqual(items, [ParsedItem(date(2026, 8, 10), 3000, "〇〇ショップ")])
+
+    def test_parses_multiple_items_card_family_member(self):
+        items = parse_mail_body(RAKUTEN_CARD_FAMILY_BODY)
+        self.assertEqual(
+            items,
+            [
+                ParsedItem(date(2026, 8, 24), 11115, "楽天ペイ残高　チャージ"),
+                ParsedItem(date(2026, 8, 24), 1000, "楽天キャッシュ　チャージ"),
+            ],
+        )
 
     def test_parses_multiple_items_card(self):
         items = parse_mail_body(RAKUTEN_CARD_BODY)
