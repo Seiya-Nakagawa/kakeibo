@@ -64,9 +64,10 @@ const Parsers = {
       ? dateMatch[1].replace(/\//g, '-')
       : null;
 
-    // お支払い金額 → 注文合計 → 合計 → 明細合計の順で取得
+    // ご注文金額 → お支払い金額 → 注文合計 → 合計 → 明細合計の順で取得
     let amount = null;
     const amountPatterns = [
+      /ご注文金額[：:]\s*([\d,]+)円/,
       /お支払い金額[：:]\s*([\d,]+)円/,
       /注文合計\s*([\d,]+)円/,
       /合計\s*([\d,]+)円/
@@ -80,7 +81,7 @@ const Parsers = {
       }
     }
 
-    if (!amount) {
+    if (amount === null) {
       // 明細行の「＝ X,XXX円」を合計（例: 2,000円 × 1個 ＝ 2,000円）
       const lineMatches = text.match(/＝\s*([\d,]+)円/g);
       if (lineMatches) {
@@ -92,7 +93,7 @@ const Parsers = {
       }
     }
 
-    if (!shop || !amount || !date) return null;
+    if (!shop || amount === null || !date) return null;
     return { date, amount, shop };
   },
 

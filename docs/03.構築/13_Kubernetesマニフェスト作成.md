@@ -172,6 +172,12 @@ spec:
 
 - `data[].remoteRef.key`は、OCI Vault側に同名のシークレットを事前登録しておく前提の値である
 
+現時点ではOCI Vault・External Secrets Operator連携は未構築であり、`k8s/external-secret.yaml`は
+未作成である。`kakeibo-secrets`は`scripts/create_secret.sh`を直接実行して作成する。同スクリプトは
+ファイルパスを引数に取り、省略時は`webapp/.env.production`をデフォルトで読み込み、`kakeibo`
+ネームスペースの`kakeibo-secrets`へ適用する（`webapp/.env`との役割の違いは
+[基本設計書7.3節](../02.設計/基本設計書.md#73-セキュリティ要件-63)参照）。
+
 ### 3.5. Web Deployment・Serviceを作成する
 
 `k8s/web.yaml`を新規作成する。
