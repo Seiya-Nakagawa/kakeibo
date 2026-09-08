@@ -11,7 +11,7 @@ from googleapiclient.discovery import build
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 SCOPE_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
-SCOPE_LABELS = "https://www.googleapis.com/auth/gmail.labels"
+SCOPE_MODIFY = "https://www.googleapis.com/auth/gmail.modify"
 SCOPE_SEND = "https://www.googleapis.com/auth/gmail.send"
 
 

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
+from googleapiclient.errors import HttpError
 
 from kakeibo.mail_import import compute_dedup_hash
 from kakeibo.models import EmailImportLog, PaymentMethod, Transaction, User
@@ -43,10 +44,19 @@ class _FakeExecute:
         return self._result
 
 
+class _FakeHttpResponse:
+    def __init__(self, status):
+        self.status = status
+        self.reason = "Forbidden"
+
+
 class _FakeMessages:
-    def __init__(self, messages_by_id, modify_calls):
+    def __init__(
+        self, messages_by_id, modify_calls, modify_error_message_ids=frozenset()
+    ):
         self._messages_by_id = messages_by_id
         self._modify_calls = modify_calls
+        self._modify_error_message_ids = modify_error_message_ids
 
     def list(self, **kwargs):
         return _FakeExecute({"messages": [{"id": mid} for mid in self._messages_by_id]})
@@ -56,7 +66,19 @@ class _FakeMessages:
 
     def modify(self, **kwargs):
         self._modify_calls.append(kwargs)
+        if kwargs["id"] in self._modify_error_message_ids:
+            return _FakeExecuteRaises(
+                HttpError(_FakeHttpResponse(403), b'{"error": "insufficient scope"}')
+            )
         return _FakeExecute({})
+
+
+class _FakeExecuteRaises:
+    def __init__(self, exc):
+        self._exc = exc
+
+    def execute(self):
+        raise self._exc
 
 
 class _FakeLabels:
@@ -68,9 +90,16 @@ class _FakeLabels:
 
 
 class FakeGmailService:
-    def __init__(self, messages_by_id, labels_response=LABELS_RESPONSE):
+    def __init__(
+        self,
+        messages_by_id,
+        labels_response=LABELS_RESPONSE,
+        modify_error_message_ids=frozenset(),
+    ):
         self.modify_calls = []
-        self._messages = _FakeMessages(messages_by_id, self.modify_calls)
+        self._messages = _FakeMessages(
+            messages_by_id, self.modify_calls, modify_error_message_ids
+        )
         self._labels = _FakeLabels(labels_response)
 
     def users(self):
@@ -225,4 +254,45 @@ class ImportTransactionsFromMailTests(TestCase):
             self.assertRaises(CommandError),
         ):
             call_command("import_transactions_from_mail")
+        mock_notify.assert_called_once()
+
+    @patch(f"{COMMAND_MODULE}.notify_admin")
+    @patch(f"{COMMAND_MODULE}.build_gmail_service")
+    def test_label_update_failure_does_not_block_other_messages(
+        self, mock_build_service, mock_notify
+    ):
+        # OAuthスコープ不足等でmodify()が失敗しても、取引データは既に登録済みであり、
+        # かつ後続メールの処理が継続されることを確認する（Issue #59関連の再発事象）。
+        body_1 = "■利用日時：2026/08/10 12:34\n■利用店舗：店舗A\n■利用金額：1,000円\n"
+        body_2 = "■利用日時：2026/08/11 12:34\n■利用店舗：店舗B\n■利用金額：2,000円\n"
+        message_1 = _make_message(
+            "msg-scope-error",
+            "no-reply@pay.rakuten.co.jp",
+            "楽天ペイアプリご利用内容のお知らせ",
+            body_1,
+        )
+        message_2 = _make_message(
+            "msg-ok",
+            "no-reply@pay.rakuten.co.jp",
+            "楽天ペイアプリご利用内容のお知らせ",
+            body_2,
+        )
+        fake_service = FakeGmailService(
+            {"msg-scope-error": message_1, "msg-ok": message_2},
+            modify_error_message_ids={"msg-scope-error"},
+        )
+        mock_build_service.return_value = fake_service
+
+        call_command("import_transactions_from_mail")
+
+        # ラベル更新に失敗したメールも、取引データ自体は登録済みのままとする。
+        self.assertEqual(Transaction.objects.count(), 2)
+        self.assertEqual(
+            EmailImportLog.objects.get(gmail_message_id="msg-scope-error").status,
+            EmailImportLog.Status.FAILED,
+        )
+        self.assertEqual(
+            EmailImportLog.objects.get(gmail_message_id="msg-ok").status,
+            EmailImportLog.Status.SUCCESS,
+        )
         mock_notify.assert_called_once()
