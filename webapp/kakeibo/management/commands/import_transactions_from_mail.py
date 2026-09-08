@@ -1,9 +1,10 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
+from googleapiclient.errors import HttpError
 
 from kakeibo.categorization import match_category
-from kakeibo.gmail_client import SCOPE_LABELS, SCOPE_READONLY, build_gmail_service
+from kakeibo.gmail_client import SCOPE_MODIFY, SCOPE_READONLY, build_gmail_service
 from kakeibo.mail_import import (
     compute_dedup_hash,
     extract_plain_text,
@@ -32,7 +33,7 @@ class Command(BaseCommand):
 
     def _run(self):
         import_user = self._resolve_import_user()
-        service = build_gmail_service([SCOPE_READONLY, SCOPE_LABELS])
+        service = build_gmail_service([SCOPE_READONLY, SCOPE_MODIFY])
         label_ids = self._label_ids(service)
         message_ids = self._list_target_message_ids(
             service, label_ids[LABEL_UNPROCESSED]
@@ -170,14 +171,25 @@ class Command(BaseCommand):
                 created_by=import_user,
             )
 
-        service.users().messages().modify(
-            userId="me",
-            id=message_id,
-            body={
-                "removeLabelIds": [label_ids[LABEL_UNPROCESSED]],
-                "addLabelIds": [label_ids[LABEL_PROCESSED]],
-            },
-        ).execute()
+        # 取引データの登録が完了した後にラベル更新を行うため、ここで失敗しても
+        # 取引データは既に登録済みである。1件のラベル更新失敗で後続メールの処理まで
+        # 止めないよう、例外はこのメール単位の失敗として扱いループを継続する。
+        try:
+            service.users().messages().modify(
+                userId="me",
+                id=message_id,
+                body={
+                    "removeLabelIds": [label_ids[LABEL_UNPROCESSED]],
+                    "addLabelIds": [label_ids[LABEL_PROCESSED]],
+                },
+            ).execute()
+        except HttpError as exc:
+            error_detail = f"Gmailラベルの更新に失敗しました: {exc}"
+            self._log_result(
+                message_id, rule.service, EmailImportLog.Status.FAILED, error_detail
+            )
+            return f"message_id={message_id} service={rule.service}: {error_detail}"
+
         self._log_result(message_id, rule.service, EmailImportLog.Status.SUCCESS, None)
         return None
 
