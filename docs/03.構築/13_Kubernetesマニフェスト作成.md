@@ -12,14 +12,13 @@
   - [3.5. Web Deployment・Serviceを作成する](#35-web-deploymentserviceを作成する)
   - [3.6. Ingressを作成する](#36-ingressを作成する)
   - [3.7. メール取込CronJobを作成する](#37-メール取込cronjobを作成する)
-  - [3.8. バックアップCronJobを作成する](#38-バックアップcronjobを作成する)
-  - [3.9. マニフェストの構文を確認する](#39-マニフェストの構文を確認する)
+  - [3.8. マニフェストの構文を確認する](#38-マニフェストの構文を確認する)
 
 ## 1. 概要
 
 対応Issue: [#29](https://github.com/Seiya-Nakagawa/kakeibo/issues/29)
 
-Web Pod・CronJob（メール取込、バックアップ）のKubernetesマニフェストを作成する。
+Web Pod・CronJob（メール取込）のKubernetesマニフェストを作成する。
 対応する設計書: [基本設計書4.1.1節](../02.設計/基本設計書.md#411-pod-から-mysql-への接続方式)、
 [1.1.1節](../02.設計/基本設計書.md#111-ドメインパス割り当て方針)、
 [7.3節](../02.設計/基本設計書.md#73-セキュリティ要件-63)
@@ -36,7 +35,6 @@ Web Pod・CronJob（メール取込、バックアップ）のKubernetesマニ�
 
 ## 2. 前提条件
 
-- [12_バックアップ用CronJob実装.md](12_バックアップ用CronJob実装.md) の完了
 - `infra-oci-terraform`・`infra-oci-ansible`によりKubernetesクラスタ・
   ingress-nginx・cert-manager・External Secrets Operatorが構築済みであること
 
@@ -153,21 +151,6 @@ spec:
     - secretKey: MAIL_IMPORT_USER_EMAIL
       remoteRef:
         key: kakeibo-mail-import-user-email
-    - secretKey: BACKUP_S3_ENDPOINT_URL
-      remoteRef:
-        key: kakeibo-backup-s3-endpoint-url
-    - secretKey: BACKUP_S3_ACCESS_KEY
-      remoteRef:
-        key: kakeibo-backup-s3-access-key
-    - secretKey: BACKUP_S3_SECRET_KEY
-      remoteRef:
-        key: kakeibo-backup-s3-secret-key
-    - secretKey: BACKUP_S3_REGION
-      remoteRef:
-        key: kakeibo-backup-s3-region
-    - secretKey: BACKUP_BUCKET_NAME
-      remoteRef:
-        key: kakeibo-backup-bucket-name
 ```
 
 - `data[].remoteRef.key`は、OCI Vault側に同名のシークレットを事前登録しておく前提の値である
@@ -382,13 +365,7 @@ spec:
 - 実行時刻（`schedule: "0 6 * * *"`）は決済通知メールが出揃う時間帯を想定した仮の値であり、
   運用開始後に実データを見て要調整
 
-### 3.8. バックアップCronJobを作成する
-
-`k8s/cronjob-backup.yaml`を新規作成する。構成は3.7と同様で、`command`のみ
-`["python", "manage.py", "backup_database"]`に、`schedule`を`"0 3 * * *"`
-（メール取込より後、DBへの日中の書き込みが少ない時間帯を想定した仮の値）に変更する。
-
-### 3.9. マニフェストの構文を確認する
+### 3.8. マニフェストの構文を確認する
 
 ```bash
 python3 -c "
