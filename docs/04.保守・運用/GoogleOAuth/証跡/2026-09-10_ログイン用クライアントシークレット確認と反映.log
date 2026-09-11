@@ -1,0 +1,85 @@
+========================================
+本番ログイン用GOOGLE_OAUTH_CLIENT_SECRETの正しい値確認と反映（Issue #61）
+実行日時: 2026-09-10
+対象サーバ: 217.142.230.83（oci-portfolio、SSH経由）
+関連Issue: #61（元Issue #59）
+========================================
+
+## 1. 前提
+
+Issue #59対応中の障害復旧作業で、`webapp/.env`と`webapp/.env.production`で
+`GOOGLE_OAUTH_CLIENT_SECRET`（ログイン用OAuthクライアント、Gmail API用とは別）の
+値が異なっていることが判明していた。
+
+- `.env`: `GOCSPX-...xLBe`（末尾4文字）
+- `.env.production`（変更前）: `GOCSPX-...uLuE`（末尾4文字）
+
+本番Kubernetes Secretには暫定的に`.env`側の値（`...xLBe`）が採用されていた。
+
+## 2. 本番稼働状況の事前確認
+
+対応着手時点で `kakeibo-web` Podが正常稼働しており、直近ログにOAuth関連の
+エラーが出ていないか確認した。
+
+$ ssh seiya@217.142.230.83 "kubectl get pods -n kakeibo -l app=kakeibo-web"
+kakeibo-web-65b88ff78c-pqgkv   1/1   Running   0   25h
+
+$ ssh seiya@217.142.230.83 "kubectl logs -n kakeibo kakeibo-web-65b88ff78c-pqgkv --tail=500 | grep -iE 'oauth|invalid_client|invalid_grant|unauthorized_client|401'"
+（該当なし）
+
+エラーは検出されなかったが、暫定値が正しいかどうかは未確認のままであった。
+
+## 3. Google Cloud Consoleでの確認
+
+ユーザーがGoogle Cloud Console（プロジェクト: kakeibo、認証情報画面）で
+ログイン用OAuthクライアント「kakeibo-web」（クライアントID: `296565942844-7mp82j...`、
+`.env`/`.env.production`双方のGOOGLE_OAUTH_CLIENT_IDと一致）の詳細画面を確認した。
+
+表示されたクライアントシークレットはマスクされた状態（`****uLuE`、作成日
+2026年9月5日23:22:26 GMT+9、ステータス: 有効）で、末尾4文字が
+`.env.production`（変更前）の値の末尾（`...uLuE`）と一致することを確認した。
+これにより、Google Cloud Console上で唯一有効なシークレットは
+`.env.production`（変更前）側の値であり、本番Secretに暫定投入されていた
+`.env`側の値（`...xLBe`）は誤りであると判断した。
+
+## 4. ローカルファイルの修正
+
+`webapp/.env`・`webapp/.env.production`双方の`GOOGLE_OAUTH_CLIENT_SECRET`を
+Google Cloud Console上で有効と確認できた値（`...uLuE`）に統一した（両ファイルとも
+`.gitignore`対象のためコミット対象外）。
+
+## 5. 本番Secretの再作成とロールアウト再起動
+
+$ bash scripts/create_secret.sh webapp/.env.production
+namespace/kakeibo configured
+secret/kakeibo-secrets configured
+✅ Secret 'kakeibo-secrets' successfully updated in namespace 'kakeibo'.
+
+$ ssh seiya@217.142.230.83 "kubectl get secret kakeibo-secrets -n kakeibo -o jsonpath='{.data.GOOGLE_OAUTH_CLIENT_SECRET}' | base64 -d | tail -c 6; echo"
+YWuLuE
+
+反映後の値の末尾がConsole上の表示（`uLuE`）と一致することを確認した。
+
+$ ssh seiya@217.142.230.83 "kubectl rollout restart deployment/kakeibo-web -n kakeibo"
+deployment.apps/kakeibo-web restarted
+
+$ ssh seiya@217.142.230.83 "kubectl rollout status deployment/kakeibo-web -n kakeibo --timeout=120s"
+deployment "kakeibo-web" successfully rolled out
+
+$ ssh seiya@217.142.230.83 "kubectl get pods -n kakeibo -l app=kakeibo-web"
+kakeibo-web-5bf8f65659-9jcnk   1/1   Running   0   14s
+
+## 6. 動作確認
+
+ユーザーが実際にブラウザから `https://technohonesty.com/kakeibo/` にアクセスし、
+Googleログインが成功することを確認した。
+
+========================================
+## まとめ
+
+本番Kubernetes Secretに暫定投入されていた`GOOGLE_OAUTH_CLIENT_SECRET`は誤った値
+（`.env`側の`...xLBe`）であり、Google Cloud Console上で有効な正しい値は
+`.env.production`（変更前）側の`...uLuE`であることを確認した。両ファイルを
+正しい値に統一し、本番Secretを再作成・ロールアウト再起動のうえ、実際のGoogle
+ログイン成功を確認した。
+========================================
