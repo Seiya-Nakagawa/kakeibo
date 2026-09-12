@@ -13,6 +13,7 @@
       .messages li { padding: 0.4rem; margin-bottom: 0.5rem; background: #eef; }
       .errorlist { color: #c00; }
       fieldset { margin-bottom: 1rem; }
+      .date-weekday { margin-left: 0.5em; color: #555; }
     </style>
     {% block extra_head %}{% endblock %}
   </head>
@@ -44,5 +45,31 @@
     <main>
       {% block content %}{% endblock %}
     </main>
+    <script>
+      // 日付入力（type="date"）の右側に曜日を表示する（Issue #10）。
+      (function () {
+        const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+        function updateWeekdayLabel(input) {
+          let label = input.nextElementSibling;
+          if (!label || !label.classList.contains("date-weekday")) {
+            label = document.createElement("span");
+            label.className = "date-weekday";
+            input.insertAdjacentElement("afterend", label);
+          }
+          if (input.value) {
+            const date = new Date(`${input.value}T00:00:00`);
+            label.textContent = `(${WEEKDAYS[date.getDay()]})`;
+          } else {
+            label.textContent = "";
+          }
+        }
+
+        document.querySelectorAll('input[type="date"]').forEach((input) => {
+          updateWeekdayLabel(input);
+          input.addEventListener("change", () => updateWeekdayLabel(input));
+        });
+      })();
+    </script>
   </body>
 </html>
