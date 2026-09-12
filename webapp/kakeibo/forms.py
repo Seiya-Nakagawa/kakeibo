@@ -52,19 +52,26 @@ class TransactionFilterForm(forms.Form):
     """画面3 取引一覧の絞り込み条件（基本設計書5.3.2節）。"""
 
     date_from = forms.DateField(
-        required=False, widget=forms.DateInput(attrs={"type": "date"})
+        label="期間（から）",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
     )
     date_to = forms.DateField(
-        required=False, widget=forms.DateInput(attrs={"type": "date"})
+        label="期間（まで）",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
     )
-    category = forms.ModelChoiceField(queryset=Category.objects.all(), required=False)
+    category = forms.ModelChoiceField(
+        label="カテゴリ", queryset=Category.objects.all(), required=False
+    )
     payment_method = forms.ModelChoiceField(
+        label="決済手段",
         queryset=None,
         required=False,
     )
-    amount_min = forms.IntegerField(required=False, min_value=0)
-    amount_max = forms.IntegerField(required=False, min_value=0)
-    counterpart = forms.CharField(required=False)
+    amount_min = forms.IntegerField(label="金額（下限）", required=False, min_value=0)
+    amount_max = forms.IntegerField(label="金額（上限）", required=False, min_value=0)
+    counterpart = forms.CharField(label="店舗名", required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -77,7 +84,8 @@ class CategoryAssignForm(forms.Form):
     """画面5 未分類取引一覧: カテゴリ選択・割当（基本設計書5.3.4節）。"""
 
     category = forms.ModelChoiceField(
-        queryset=Category.objects.filter(category_type=Category.CategoryType.EXPENSE)
+        label="カテゴリ",
+        queryset=Category.objects.filter(category_type=Category.CategoryType.EXPENSE),
     )
 
 
