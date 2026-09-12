@@ -181,6 +181,11 @@ class TransactionCreateView(CreateView):
     template_name = "kakeibo/transaction_form.html"
     success_url = reverse_lazy("transaction-list")
 
+    def get_initial(self):
+        initial = super().get_initial()
+        initial.setdefault("transaction_date", timezone.localdate())
+        return initial
+
     def form_valid(self, form):
         form.instance.source = Transaction.Source.MANUAL
         form.instance.created_by = self.request.user
