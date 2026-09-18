@@ -1,0 +1,52 @@
+# OCI Vaultのシークレットをkakeibo-secretsへ同期する（基本設計書7.3節）。
+# 接続定義はinfra-oci側で構築済みのClusterSecretStore（oci-vault、Instance Principal認証）を
+# 参照する。remoteRef.keyはVault上のシークレット名（kakeibo-*）である。
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kakeibo-secrets
+  namespace: kakeibo
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: oci-vault
+    kind: ClusterSecretStore
+  target:
+    name: kakeibo-secrets
+    creationPolicy: Owner
+    # ExternalSecretを誤って削除しても、稼働中のPodが参照するSecretは残す。
+    deletionPolicy: Retain
+  data:
+    - secretKey: SECRET_KEY
+      remoteRef:
+        key: kakeibo-secret-key
+    - secretKey: DB_NAME
+      remoteRef:
+        key: kakeibo-db-name
+    - secretKey: DB_USER
+      remoteRef:
+        key: kakeibo-db-user
+    - secretKey: DB_PASSWORD
+      remoteRef:
+        key: kakeibo-db-password
+    - secretKey: GOOGLE_OAUTH_CLIENT_ID
+      remoteRef:
+        key: kakeibo-google-oauth-client-id
+    - secretKey: GOOGLE_OAUTH_CLIENT_SECRET
+      remoteRef:
+        key: kakeibo-google-oauth-client-secret
+    - secretKey: GMAIL_API_CLIENT_ID
+      remoteRef:
+        key: kakeibo-gmail-api-client-id
+    - secretKey: GMAIL_API_CLIENT_SECRET
+      remoteRef:
+        key: kakeibo-gmail-api-client-secret
+    - secretKey: GMAIL_API_REFRESH_TOKEN
+      remoteRef:
+        key: kakeibo-gmail-api-refresh-token
+    - secretKey: NOTIFICATION_RECIPIENT_EMAIL
+      remoteRef:
+        key: kakeibo-notification-recipient-email
+    - secretKey: MAIL_IMPORT_USER_EMAIL
+      remoteRef:
+        key: kakeibo-mail-import-user-email

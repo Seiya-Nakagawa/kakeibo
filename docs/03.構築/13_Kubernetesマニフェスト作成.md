@@ -8,7 +8,7 @@
   - [3.1. FORCE_SCRIPT_NAMEを設定する](#31-force_script_nameを設定する)
   - [3.2. Namespaceを作成する](#32-namespaceを作成する)
   - [3.3. ConfigMapを作成する](#33-configmapを作成する)
-  - [3.4. SecretStore・ExternalSecretを作成する](#34-secretstoreexternalsecretを作成する)
+  - [3.4. OCI Vaultへのシークレット登録・ExternalSecretを作成する](#34-oci-vaultへのシークレット登録externalsecretを作成する)
   - [3.5. Web Deployment・Serviceを作成する](#35-web-deploymentserviceを作成する)
   - [3.6. Ingressを作成する](#36-ingressを作成する)
   - [3.7. メール取込CronJobを作成する](#37-メール取込cronjobを作成する)
@@ -23,13 +23,11 @@ Web Pod・CronJob（メール取込）のKubernetesマニフェストを作成�
 [1.1.1節](../02.設計/基本設計書.md#111-ドメインパス割り当て方針)、
 [7.3節](../02.設計/基本設計書.md#73-セキュリティ要件-63)
 
-**注意**: 以下は実クラスタでの検証（`kubectl apply`）ができていない。特に次の3点は
+**注意**: 以下は実クラスタでの検証（`kubectl apply`）ができていない。特に次の2点は
 実際のクラスタ構成（`infra-oci-terraform`・`infra-oci-ansible`側の設定）に合わせて
 要確認・要調整である。
 
 - `k8s/web.yaml`・`k8s/cronjob-*.yaml`の`image`（コンテナイメージのレジストリ・タグ）
-- `k8s/external-secret.yaml`のExternal Secrets Operator認証方式
-  （導入済みバージョンのスキーマに依存する）
 - `k8s/ingress.yaml`の証明書Secret名（他アプリと共有するドメインのため、
   既存のCertificateリソースを参照する可能性がある）
 
@@ -37,6 +35,9 @@ Web Pod・CronJob（メール取込）のKubernetesマニフェストを作成�
 
 - `infra-oci-terraform`・`infra-oci-ansible`によりKubernetesクラスタ・
   ingress-nginx・cert-manager・External Secrets Operatorが構築済みであること
+- 同じく`infra-oci`により、OCI Vaultと`ClusterSecretStore/oci-vault`
+  （Instance Principal認証）が構築済みであること
+- OCI CLIが利用でき、対象Vaultのシークレットを作成する権限があること
 
 ## 3. 手順
 
@@ -85,38 +86,102 @@ data:
   SESSION_TIMEOUT_SECONDS: "1800"
 ```
 
-### 3.4. SecretStore・ExternalSecretを作成する
+### 3.4. OCI Vaultへのシークレット登録・ExternalSecretを作成する
 
-`k8s/external-secret.yaml`を新規作成する。OCI Vaultの各シークレットを
-`kakeibo-secrets`という1つのKubernetes Secretへ同期する。
+OCI Vaultへ`kakeibo-*`のシークレットを登録し、External Secrets Operatorが`kakeibo-secrets`
+（Kubernetes Secret）へ同期するよう`k8s/vault-sync.yaml`を作成する。
+接続定義（`ClusterSecretStore/oci-vault`）は`infra-oci`側で構築済みのため、本リポジトリでは作成しない。
+
+#### 3.4.1. Vaultの接続情報を取得する
+
+`infra-oci`のTerraform出力（`oci_vault_id`・コンパートメントOCID・リージョン）を環境変数に設定する。
+
+```bash
+export VAULT_ID="{Vault OCID}"
+export COMPARTMENT_ID="{コンパートメントOCID}"
+export OCI_REGION="ap-osaka-1"
+```
+
+Vaultの管理エンドポイントを取得する。
+
+```bash
+oci kms management vault get --vault-id "$VAULT_ID" --region "$OCI_REGION" \
+  --query 'data."management-endpoint"' --raw-output
+```
+
+取得した管理エンドポイントで、シークレットの暗号化に使う鍵（`infra-oci-app-db-key`）のOCIDを取得する。
+
+```bash
+export MANAGEMENT_ENDPOINT="{上記で取得した管理エンドポイント}"
+oci kms management key list --compartment-id "$COMPARTMENT_ID" --endpoint "$MANAGEMENT_ENDPOINT" \
+  --query 'data[*].{name:"display-name",id:id}' --output table
+export KEY_ID="{infra-oci-app-db-keyのOCID}"
+```
+
+- 1つ目のコマンド: Vaultの管理エンドポイントを取得する
+- 2つ目のコマンド: 管理エンドポイントを環境変数に設定し、Vault内の暗号化鍵の一覧を取得する
+
+#### 3.4.2. シークレットを登録する
+
+次の11件を登録する。Vaultのシークレット名は`kakeibo-`を接頭辞とする。
+
+| Kubernetes Secretのキー | Vaultのシークレット名 |
+| ----------------------- | --------------------- |
+| `SECRET_KEY` | `kakeibo-secret-key` |
+| `DB_NAME` | `kakeibo-db-name` |
+| `DB_USER` | `kakeibo-db-user` |
+| `DB_PASSWORD` | `kakeibo-db-password` |
+| `GOOGLE_OAUTH_CLIENT_ID` | `kakeibo-google-oauth-client-id` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | `kakeibo-google-oauth-client-secret` |
+| `GMAIL_API_CLIENT_ID` | `kakeibo-gmail-api-client-id` |
+| `GMAIL_API_CLIENT_SECRET` | `kakeibo-gmail-api-client-secret` |
+| `GMAIL_API_REFRESH_TOKEN` | `kakeibo-gmail-api-refresh-token` |
+| `NOTIFICATION_RECIPIENT_EMAIL` | `kakeibo-notification-recipient-email` |
+| `MAIL_IMPORT_USER_EMAIL` | `kakeibo-mail-import-user-email` |
+
+各シークレットを次のコマンドで登録する（表の全行について、名前と値を替えて繰り返す）。
+値はBase64でエンコードして渡す。
+
+```bash
+oci vault secret create-base64 \
+  --compartment-id "$COMPARTMENT_ID" --vault-id "$VAULT_ID" --key-id "$KEY_ID" \
+  --region "$OCI_REGION" \
+  --secret-name "kakeibo-secret-key" \
+  --secret-content-content "$(printf '%s' "{登録する値}" | base64 -w0)"
+```
+
+- `--secret-name`: Vaultのシークレット名（上表の右列）
+- `--secret-content-content`: 登録する値をBase64エンコードしたもの
+
+登録直後は状態が`CREATING`となるため、全件が`ACTIVE`になったことを確認する。
+
+```bash
+oci vault secret list --compartment-id "$COMPARTMENT_ID" --vault-id "$VAULT_ID" \
+  --region "$OCI_REGION" --all \
+  --query 'data[*].{name:"secret-name",state:"lifecycle-state"}' --output table
+```
+
+- 各シークレットの名前と状態の一覧を取得する（値は取得しない）
+
+#### 3.4.3. ExternalSecretを作成する
+
+`k8s/vault-sync.yaml`を新規作成する。
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
-kind: SecretStore
-metadata:
-  name: oci-vault
-  namespace: kakeibo
-spec:
-  provider:
-    oracle:
-      vault: "ocid1.vault.oc1..REPLACE_WITH_ACTUAL_VAULT_OCID"
-      region: "ap-tokyo-1"
-      auth:
-        instancePrincipal: {}
----
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: kakeibo-secrets
   namespace: kakeibo
 spec:
+  refreshInterval: 1h
   secretStoreRef:
     name: oci-vault
-    kind: SecretStore
+    kind: ClusterSecretStore
   target:
     name: kakeibo-secrets
     creationPolicy: Owner
-  refreshInterval: 1h
+    deletionPolicy: Retain
   data:
     - secretKey: SECRET_KEY
       remoteRef:
@@ -153,13 +218,35 @@ spec:
         key: kakeibo-mail-import-user-email
 ```
 
-- `data[].remoteRef.key`は、OCI Vault側に同名のシークレットを事前登録しておく前提の値である
+- `secretStoreRef`: `infra-oci`側で構築済みの`ClusterSecretStore/oci-vault`（Instance Principal認証）を参照する
+- `target.deletionPolicy: Retain`: ExternalSecretを削除しても、稼働中のPodが参照するSecretは削除しない
+- `data[].remoteRef.key`: 3.4.2で登録したVaultのシークレット名
 
-現時点ではOCI Vault・External Secrets Operator連携は未構築であり、`k8s/external-secret.yaml`は
-未作成である。`kakeibo-secrets`は`scripts/create_secret.sh`を直接実行して作成する。同スクリプトは
-ファイルパスを引数に取り、省略時は`webapp/.env.production`をデフォルトで読み込み、`kakeibo`
-ネームスペースの`kakeibo-secrets`へ適用する（`webapp/.env`との役割の違いは
-[基本設計書7.3節](../02.設計/基本設計書.md#73-セキュリティ要件-63)参照）。
+#### 3.4.4. ExternalSecretを適用して同期を確認する
+
+`kakeibo`ネームスペースが存在すること（3.2）を確認したうえで、クラスタのノード上で適用する。
+
+```bash
+kubectl apply -f k8s/vault-sync.yaml
+```
+
+同期状態を確認する。
+
+```bash
+kubectl get externalsecret -n kakeibo
+```
+
+- 1つ目のコマンド: ExternalSecretを作成する
+- 2つ目のコマンド: `STATUS`が`SecretSynced`、`READY`が`True`であることを確認する
+
+`kakeibo-secrets`のキーが3.4.2の11件であることを確認する。
+
+```bash
+kubectl get secret kakeibo-secrets -n kakeibo -o jsonpath='{.data}' \
+  | python3 -c 'import sys,json; print(sorted(json.load(sys.stdin).keys()))'
+```
+
+- Secretのキー名のみを一覧表示する（値は表示しない）
 
 ### 3.5. Web Deployment・Serviceを作成する
 
