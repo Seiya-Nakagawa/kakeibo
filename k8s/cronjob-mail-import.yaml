@@ -3,7 +3,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: kakeibo-mail-import
-  namespace: kakeibo
+  namespace: app-prod
 spec:
   # 実行時刻は要調整（決済通知メールが出揃う時間帯を想定した仮の値）。
   schedule: "0 6 * * *"

@@ -12,7 +12,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # 基本設計書1.1.1節: /kakeibo配下で動作させるため、URL逆引き・リダイレクト先に
 # プレフィックスを付与する。Ingress側は/kakeiboを除去してバックエンドへ転送する
-# （k8s/ingress.yamlのrewrite-target）ため、Django側は付与のみを担う。
+# （基盤側の共有Ingressのrewrite-target）ため、Django側は付与のみを担う。
 FORCE_SCRIPT_NAME = env("FORCE_SCRIPT_NAME", default="/kakeibo")
 
 # STATIC_URLをFORCE_SCRIPT_NAME起点の絶対パスにする。base.pyの相対パス（"static/"）の
