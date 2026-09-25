@@ -5,7 +5,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: kakeibo-secrets
-  namespace: kakeibo
+  namespace: app-prod
 spec:
   refreshInterval: 1h
   secretStoreRef:

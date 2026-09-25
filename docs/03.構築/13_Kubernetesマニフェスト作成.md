@@ -6,13 +6,12 @@
 - [2. 前提条件](#2-前提条件)
 - [3. 手順](#3-手順)
   - [3.1. FORCE_SCRIPT_NAMEを設定する](#31-force_script_nameを設定する)
-  - [3.2. Namespaceを作成する](#32-namespaceを作成する)
-  - [3.3. ConfigMapを作成する](#33-configmapを作成する)
-  - [3.4. OCI Vaultへのシークレット登録・ExternalSecretを作成する](#34-oci-vaultへのシークレット登録externalsecretを作成する)
-  - [3.5. Web Deployment・Serviceを作成する](#35-web-deploymentserviceを作成する)
-  - [3.6. Ingressを作成する](#36-ingressを作成する)
-  - [3.7. メール取込CronJobを作成する](#37-メール取込cronjobを作成する)
-  - [3.8. マニフェストの構文を確認する](#38-マニフェストの構文を確認する)
+  - [3.2. ConfigMapを作成する](#32-configmapを作成する)
+  - [3.3. OCI Vaultへのシークレット登録・ExternalSecretを作成する](#33-oci-vaultへのシークレット登録externalsecretを作成する)
+  - [3.4. Web Deployment・Serviceを作成する](#34-web-deploymentserviceを作成する)
+  - [3.5. メール取込CronJobを作成する](#35-メール取込cronjobを作成する)
+  - [3.6. マニフェストの構文を確認する](#36-マニフェストの構文を確認する)
+  - [3.7. 共有Namespaceへ移行する](#37-共有namespaceへ移行する)
 
 ## 1. 概要
 
@@ -28,8 +27,6 @@ Web Pod・CronJob（メール取込）のKubernetesマニフェストを作成�
 要確認・要調整である。
 
 - `k8s/web.yaml`・`k8s/cronjob-*.yaml`の`image`（コンテナイメージのレジストリ・タグ）
-- `k8s/ingress.yaml`の証明書Secret名（他アプリと共有するドメインのため、
-  既存のCertificateリソースを参照する可能性がある）
 
 ## 2. 前提条件
 
@@ -37,6 +34,9 @@ Web Pod・CronJob（メール取込）のKubernetesマニフェストを作成�
   ingress-nginx・cert-manager・External Secrets Operatorが構築済みであること
 - 同じく`infra-oci`により、OCI Vaultと`ClusterSecretStore/oci-vault`
   （Instance Principal認証）が構築済みであること
+- 全サービス共有の`app-prod`ネームスペース・共有Ingress・TLS証明書が`infra-oci`により
+  構築済みであること（本リポジトリのマニフェストには含めない。共有Ingressは
+  Service `kakeibo-web`（ポート80）を参照する）
 - OCI CLIが利用でき、対象Vaultのシークレットを作成する権限があること
 
 ## 3. 手順
@@ -48,7 +48,7 @@ Web Pod・CronJob（メール取込）のKubernetesマニフェストを作成�
 ```python
 # 基本設計書1.1.1節: /kakeibo配下で動作させるため、URL逆引き・リダイレクト先に
 # プレフィックスを付与する。Ingress側は/kakeiboを除去してバックエンドへ転送する
-# （k8s/ingress.yamlのrewrite-target）ため、Django側は付与のみを担う。
+# （基盤側の共有Ingressのrewrite-target）ため、Django側は付与のみを担う。
 FORCE_SCRIPT_NAME = env("FORCE_SCRIPT_NAME", default="/kakeibo")
 ```
 
@@ -58,18 +58,7 @@ FORCE_SCRIPT_NAME = env("FORCE_SCRIPT_NAME", default="/kakeibo")
 # FORCE_SCRIPT_NAME=/kakeibo
 ```
 
-### 3.2. Namespaceを作成する
-
-`k8s/namespace.yaml`を新規作成する。
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: kakeibo
-```
-
-### 3.3. ConfigMapを作成する
+### 3.2. ConfigMapを作成する
 
 `k8s/configmap.yaml`を新規作成する。機密情報を含まない設定値のみを保持する。
 
@@ -78,7 +67,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kakeibo-config
-  namespace: kakeibo
+  namespace: app-prod
 data:
   ALLOWED_HOSTS: "technohonesty.com"
   FORCE_SCRIPT_NAME: "/kakeibo"
@@ -86,13 +75,13 @@ data:
   SESSION_TIMEOUT_SECONDS: "1800"
 ```
 
-### 3.4. OCI Vaultへのシークレット登録・ExternalSecretを作成する
+### 3.3. OCI Vaultへのシークレット登録・ExternalSecretを作成する
 
 OCI Vaultへ`kakeibo-*`のシークレットを登録し、External Secrets Operatorが`kakeibo-secrets`
 （Kubernetes Secret）へ同期するよう`k8s/vault-sync.yaml`を作成する。
 接続定義（`ClusterSecretStore/oci-vault`）は`infra-oci`側で構築済みのため、本リポジトリでは作成しない。
 
-#### 3.4.1. Vaultの接続情報を取得する
+#### 3.3.1. Vaultの接続情報を取得する
 
 `infra-oci`のTerraform出力（`oci_vault_id`・コンパートメントOCID・リージョン）を環境変数に設定する。
 
@@ -121,7 +110,7 @@ export KEY_ID="{infra-oci-app-db-keyのOCID}"
 - 1つ目のコマンド: Vaultの管理エンドポイントを取得する
 - 2つ目のコマンド: 管理エンドポイントを環境変数に設定し、Vault内の暗号化鍵の一覧を取得する
 
-#### 3.4.2. シークレットを登録する
+#### 3.3.2. シークレットを登録する
 
 次の11件を登録する。Vaultのシークレット名は`kakeibo-`を接頭辞とする。
 
@@ -163,7 +152,7 @@ oci vault secret list --compartment-id "$COMPARTMENT_ID" --vault-id "$VAULT_ID" 
 
 - 各シークレットの名前と状態の一覧を取得する（値は取得しない）
 
-#### 3.4.3. ExternalSecretを作成する
+#### 3.3.3. ExternalSecretを作成する
 
 `k8s/vault-sync.yaml`を新規作成する。
 
@@ -172,7 +161,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: kakeibo-secrets
-  namespace: kakeibo
+  namespace: app-prod
 spec:
   refreshInterval: 1h
   secretStoreRef:
@@ -220,11 +209,11 @@ spec:
 
 - `secretStoreRef`: `infra-oci`側で構築済みの`ClusterSecretStore/oci-vault`（Instance Principal認証）を参照する
 - `target.deletionPolicy: Retain`: ExternalSecretを削除しても、稼働中のPodが参照するSecretは削除しない
-- `data[].remoteRef.key`: 3.4.2で登録したVaultのシークレット名
+- `data[].remoteRef.key`: 3.3.2で登録したVaultのシークレット名
 
-#### 3.4.4. ExternalSecretを適用して同期を確認する
+#### 3.3.4. ExternalSecretを適用して同期を確認する
 
-`kakeibo`ネームスペースが存在すること（3.2）を確認したうえで、クラスタのノード上で適用する。
+`app-prod`ネームスペース（基盤側で作成済み）が存在することを確認したうえで、クラスタのノード上で適用する。
 
 ```bash
 kubectl apply -f k8s/vault-sync.yaml
@@ -233,22 +222,22 @@ kubectl apply -f k8s/vault-sync.yaml
 同期状態を確認する。
 
 ```bash
-kubectl get externalsecret -n kakeibo
+kubectl get externalsecret -n app-prod
 ```
 
 - 1つ目のコマンド: ExternalSecretを作成する
 - 2つ目のコマンド: `STATUS`が`SecretSynced`、`READY`が`True`であることを確認する
 
-`kakeibo-secrets`のキーが3.4.2の11件であることを確認する。
+`kakeibo-secrets`のキーが3.3.2の11件であることを確認する。
 
 ```bash
-kubectl get secret kakeibo-secrets -n kakeibo -o jsonpath='{.data}' \
+kubectl get secret kakeibo-secrets -n app-prod -o jsonpath='{.data}' \
   | python3 -c 'import sys,json; print(sorted(json.load(sys.stdin).keys()))'
 ```
 
 - Secretのキー名のみを一覧表示する（値は表示しない）
 
-### 3.5. Web Deployment・Serviceを作成する
+### 3.4. Web Deployment・Serviceを作成する
 
 `k8s/web.yaml`を新規作成する。
 
@@ -257,7 +246,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kakeibo-web
-  namespace: kakeibo
+  namespace: app-prod
 spec:
   replicas: 1
   selector:
@@ -330,7 +319,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kakeibo-web
-  namespace: kakeibo
+  namespace: app-prod
 spec:
   selector:
     app: kakeibo-web
@@ -344,43 +333,7 @@ spec:
 - `readinessProbe`・`livenessProbe`は未ログイン時のログイン画面へのリダイレクト
   （HTTPステータス302）を正常応答として扱う（`httpGet`は200〜399を成功とみなす）
 
-### 3.6. Ingressを作成する
-
-`k8s/ingress.yaml`を新規作成する。
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: kakeibo-web
-  namespace: kakeibo
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - technohonesty.com
-      secretName: technohonesty-com-tls
-  rules:
-    - host: technohonesty.com
-      http:
-        paths:
-          - path: /kakeibo(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: kakeibo-web
-                port:
-                  number: 80
-```
-
-- `/kakeibo(/|$)(.*)`と`rewrite-target: /$2`の組み合わせで、`/kakeibo`プレフィックスを
-  除去してバックエンド（Django、`FORCE_SCRIPT_NAME`側で`/kakeibo`を再付与）へ転送する
-  （基本設計書1.1.1節）
-
-### 3.7. メール取込CronJobを作成する
+### 3.5. メール取込CronJobを作成する
 
 `k8s/cronjob-mail-import.yaml`を新規作成する。Web Deploymentと同じ
 `mysqld-socket-dir`のhostPathマウント・initContainerを持つ構成とする。
@@ -390,7 +343,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: kakeibo-mail-import
-  namespace: kakeibo
+  namespace: app-prod
 spec:
   schedule: "0 6 * * *"
   timeZone: "Asia/Tokyo"
@@ -452,7 +405,7 @@ spec:
 - 実行時刻（`schedule: "0 6 * * *"`）は決済通知メールが出揃う時間帯を想定した仮の値であり、
   運用開始後に実データを見て要調整
 
-### 3.8. マニフェストの構文を確認する
+### 3.6. マニフェストの構文を確認する
 
 ```bash
 python3 -c "
@@ -466,3 +419,41 @@ for f in sorted(glob.glob('k8s/*.yaml')):
 
 - YAML構文の妥当性のみを確認する（実クラスタでの`kubectl apply --dry-run`による
   スキーマ検証は、クラスタへの接続経路が確立してから別途行う）
+
+### 3.7. 共有Namespaceへ移行する
+
+旧`kakeibo`ネームスペースで稼働していた環境を、共有の`app-prod`へ移行する。
+旧Ingressが共有Ingressと同一ホスト・同一パスで重複するため、旧ネームスペースの削除が先である。
+削除から共有Ingress作成までの間、`/kakeibo`は一時的に停止する。
+
+クラスタのノード上で、旧ネームスペースを削除する。
+
+```bash
+kubectl delete namespace kakeibo
+```
+
+- 旧ネームスペース内のDeployment・Service・Ingress・CronJob・ExternalSecretをまとめて削除する
+
+リポジトリのルートで、`app-prod`へデプロイする。
+
+```bash
+./deploy-oci.sh
+```
+
+- イメージのビルド・転送、マニフェスト適用、ロールアウト待機、マイグレーションを行う
+
+`infra-oci`のリポジトリで、共有Ingressを作成する。
+
+```bash
+./scripts/run_ansible.sh --tags kubernetes
+```
+
+- 共有Ingressを作成し、`https://technohonesty.com/kakeibo/`を有効にする
+
+動作を確認する。
+
+```bash
+kubectl get externalsecret,pods,ingress,certificate -n app-prod
+```
+
+- ExternalSecretが`SecretSynced`、Podが`Running`、共有Ingressと証明書が存在することを確認する
