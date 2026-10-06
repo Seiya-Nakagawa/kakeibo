@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "webapp/**"
+      - "k8s/**"
+      - "deploy-oci.sh"
+      - "scripts/deploy_via_bastion.sh"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  # ユーザー OCID・フィンガープリントは秘密情報ではないため scripts/deploy_via_bastion.sh に
+  # 直接定義する。秘密鍵のみ Secrets 経由で渡す。
+  OCI_CLI_KEY_CONTENT: ${{ secrets.BASTION_OCI_PRIVATE_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install OCI CLI
+        run: pip install --disable-pip-version-check oci-cli==3.94.0
+
+      - name: Deploy via OCI Bastion
+        run: ./scripts/deploy_via_bastion.sh
