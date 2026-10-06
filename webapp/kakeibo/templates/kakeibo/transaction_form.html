@@ -5,10 +5,44 @@
 {% block content %}
   <h1>取引{% if object %}編集{% else %}登録{% endif %}</h1>
 
+  <style>
+    .calc-panel { display: none; width: 16rem; margin: 0.5rem 0 1rem; padding: 0.5rem; border: 1px solid #ccc; }
+    .calc-panel.is-open { display: block; }
+    .calc-display { width: 100%; box-sizing: border-box; margin-bottom: 0.5rem; font-size: 1.2rem; text-align: right; }
+    .calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
+    .calc-keys button { padding: 0.6rem 0; font-size: 1rem; }
+    .calc-apply { width: 100%; margin-top: 0.5rem; padding: 0.5rem 0; }
+  </style>
+
   <form method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
     {{ form.as_p }}
+    <div id="calc-panel" class="calc-panel">
+      <input type="text" id="calc-display" class="calc-display" value="0" readonly />
+      <div class="calc-keys">
+        <button type="button" data-calc-key="C">C</button>
+        <button type="button" data-calc-key="⌫">⌫</button>
+        <button type="button" data-calc-key="÷">÷</button>
+        <button type="button" data-calc-key="×">×</button>
+        <button type="button" data-calc-key="7">7</button>
+        <button type="button" data-calc-key="8">8</button>
+        <button type="button" data-calc-key="9">9</button>
+        <button type="button" data-calc-key="−">−</button>
+        <button type="button" data-calc-key="4">4</button>
+        <button type="button" data-calc-key="5">5</button>
+        <button type="button" data-calc-key="6">6</button>
+        <button type="button" data-calc-key="+">+</button>
+        <button type="button" data-calc-key="1">1</button>
+        <button type="button" data-calc-key="2">2</button>
+        <button type="button" data-calc-key="3">3</button>
+        <button type="button" data-calc-key="=">=</button>
+        <button type="button" data-calc-key="0">0</button>
+        <button type="button" data-calc-key="00">00</button>
+        <button type="button" data-calc-key=".">.</button>
+      </div>
+      <button type="button" id="calc-apply" class="calc-apply">金額に入力</button>
+    </div>
     <button type="submit">保存</button>
   </form>
 
@@ -26,5 +60,78 @@
       el.addEventListener("change", toggleTransactionTypeFields);
     });
     toggleTransactionTypeFields();
+
+    // 電卓: 金額欄の横のボタンでパネルを開閉し、計算結果を金額欄へ反映する（基本設計書5.3.3節）。
+    const calcOperators = { "+": (a, b) => a + b, "−": (a, b) => a - b, "×": (a, b) => a * b, "÷": (a, b) => a / b };
+
+    // 式を eval せずに評価する。×÷ を先に畳み込んでから +− を左から順に計算する。
+    function evaluateCalcExpression(expression) {
+      const tokens = expression.match(/\d+(?:\.\d+)?|[+−×÷]/g);
+      if (!tokens || tokens.join("") !== expression) return null;
+      const terms = [];
+      let pendingOperator = "+";
+      let index = 0;
+      while (index < tokens.length) {
+        let value = Number(tokens[index++]);
+        if (Number.isNaN(value)) return null;
+        while (index < tokens.length && (tokens[index] === "×" || tokens[index] === "÷")) {
+          const operator = tokens[index++];
+          const operand = Number(tokens[index++]);
+          if (Number.isNaN(operand)) return null;
+          if (operator === "÷" && operand === 0) return null;
+          value = calcOperators[operator](value, operand);
+        }
+        terms.push([pendingOperator, value]);
+        pendingOperator = tokens[index++];
+      }
+      const result = terms.reduce((total, [operator, value]) => calcOperators[operator](total, value), 0);
+      return Number.isFinite(result) ? Math.round(result) : null;
+    }
+
+    (function setupCalculator() {
+      const amountInput = document.getElementById("id_amount");
+      const panel = document.getElementById("calc-panel");
+      const display = document.getElementById("calc-display");
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.textContent = "電卓";
+      toggle.style.marginLeft = "0.5rem";
+      amountInput.insertAdjacentElement("afterend", toggle);
+      amountInput.closest("p").insertAdjacentElement("afterend", panel);
+
+      let expression = "";
+      function render() {
+        display.value = expression || "0";
+      }
+      function calculate() {
+        if (!expression) return;
+        const result = evaluateCalcExpression(expression);
+        expression = result === null ? "" : String(result);
+        if (result === null) display.value = "エラー";
+        else render();
+      }
+      toggle.addEventListener("click", () => {
+        panel.classList.toggle("is-open");
+        if (panel.classList.contains("is-open") && amountInput.value && !expression) {
+          expression = amountInput.value;
+          render();
+        }
+      });
+      panel.querySelectorAll("[data-calc-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.dataset.calcKey;
+          if (key === "C") expression = "";
+          else if (key === "⌫") expression = expression.slice(0, -1);
+          else if (key === "=") return calculate();
+          else if (key in calcOperators && !/\d$/.test(expression)) return;
+          else expression += key;
+          render();
+        });
+      });
+      document.getElementById("calc-apply").addEventListener("click", () => {
+        calculate();
+        if (/^\d+$/.test(expression)) amountInput.value = expression;
+      });
+    })();
   </script>
 {% endblock %}

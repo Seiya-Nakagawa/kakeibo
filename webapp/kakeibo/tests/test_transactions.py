@@ -24,6 +24,11 @@ class TransactionViewTestBase(TestCase):
 
 
 class TransactionCreateViewTests(TransactionViewTestBase):
+    def test_form_renders_calculator_panel(self):
+        response = self.client.get(reverse("transaction-create"))
+        self.assertContains(response, 'id="calc-panel"')
+        self.assertContains(response, 'id="calc-apply"')
+
     def test_create_expense_requires_payment_method(self):
         response = self.client.post(
             reverse("transaction-create"),
