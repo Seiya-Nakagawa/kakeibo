@@ -5,16 +5,7 @@
 {% block content %}
   <h1>取引{% if object %}編集{% else %}登録{% endif %}</h1>
 
-  <style>
-    .calc-panel { display: none; width: 16rem; margin: 0.5rem 0 1rem; padding: 0.5rem; border: 1px solid #ccc; }
-    .calc-panel.is-open { display: block; }
-    .calc-display { width: 100%; box-sizing: border-box; margin-bottom: 0.5rem; font-size: 1.2rem; text-align: right; }
-    .calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
-    .calc-keys button { padding: 0.6rem 0; font-size: 1rem; }
-    .calc-apply { width: 100%; margin-top: 0.5rem; padding: 0.5rem 0; }
-  </style>
-
-  <form method="post">
+  <form method="post" class="card field-stack">
     {% csrf_token %}
     {{ form.non_field_errors }}
     {{ form.as_p }}
@@ -24,7 +15,7 @@
       {% endfor %}
     </datalist>
     <div id="calc-panel" class="calc-panel">
-      <input type="text" id="calc-display" class="calc-display" value="0" readonly />
+      <input type="text" inputmode="none" id="calc-display" class="calc-display" value="0" readonly />
       <div class="calc-keys">
         <button type="button" data-calc-key="C">C</button>
         <button type="button" data-calc-key="⌫">⌫</button>
@@ -46,9 +37,9 @@
         <button type="button" data-calc-key="00">00</button>
         <button type="button" data-calc-key=".">.</button>
       </div>
-      <button type="button" id="calc-apply" class="calc-apply">金額に入力</button>
+      <button type="button" id="calc-apply" class="btn btn-block calc-apply">金額に入力</button>
     </div>
-    <button type="submit">保存</button>
+    <button type="submit" class="btn btn-block">保存</button>
   </form>
 
   <script>
@@ -103,8 +94,12 @@
       const toggle = document.createElement("button");
       toggle.type = "button";
       toggle.textContent = "電卓";
-      toggle.style.marginLeft = "0.5rem";
-      amountInput.insertAdjacentElement("afterend", toggle);
+      toggle.className = "btn btn-ghost";
+      // 金額欄と電卓ボタンを同じ行に並べる
+      const amountRow = document.createElement("div");
+      amountRow.className = "amount-row";
+      amountInput.insertAdjacentElement("beforebegin", amountRow);
+      amountRow.append(amountInput, toggle);
       amountInput.closest("p").insertAdjacentElement("afterend", panel);
 
       let expression = "";

@@ -6,6 +6,14 @@ from kakeibo.models import BalanceRecord, Category, Transaction
 class TransactionForm(forms.ModelForm):
     """画面4 取引登録・編集: 種別（支出/収入）でフォーム項目の要否が変わる（基本設計書5.3.3節）。"""
 
+    label_suffix = ""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 種別は必須の2択なので、空の選択肢（---------）を出さず新規時は支出を初期選択にする
+        self.fields["transaction_type"].choices = Transaction.TransactionType.choices
+        self.fields["transaction_type"].initial = Transaction.TransactionType.EXPENSE
+
     class Meta:
         model = Transaction
         fields = (
@@ -51,6 +59,8 @@ class TransactionForm(forms.ModelForm):
 class TransactionFilterForm(forms.Form):
     """画面3 取引一覧の絞り込み条件（基本設計書5.3.2節）。"""
 
+    label_suffix = ""
+
     date_from = forms.DateField(
         label="期間（から）",
         required=False,
@@ -95,6 +105,8 @@ class BalanceRecordForm(forms.ModelForm):
     要件4.6.3（同一口座・同一基準日は上書き）に対応するため、呼び出し側
     （ビュー）は既存レコードがあればform_kwargsの`instance`にそれを渡す。
     """
+
+    label_suffix = ""
 
     class Meta:
         model = BalanceRecord
