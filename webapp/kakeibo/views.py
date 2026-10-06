@@ -3,6 +3,7 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
+from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -173,7 +174,26 @@ class TransactionExportCsvView(View):
         return response
 
 
-class TransactionCreateView(CreateView):
+# 店舗名の予測変換候補の最大件数
+COUNTERPART_SUGGESTION_LIMIT = 100
+
+
+class CounterpartSuggestionMixin:
+    """取引フォームに店舗名・収入元の予測変換候補（登録件数の多い順）を渡す。"""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["counterpart_suggestions"] = list(
+            Transaction.objects.filter(is_deleted=False)
+            .values("counterpart")
+            .annotate(count=Count("id"))
+            .order_by("-count", "counterpart")
+            .values_list("counterpart", flat=True)[:COUNTERPART_SUGGESTION_LIMIT]
+        )
+        return context
+
+
+class TransactionCreateView(CounterpartSuggestionMixin, CreateView):
     """画面4 取引登録（基本設計書5.3.3節）。"""
 
     model = Transaction
@@ -193,7 +213,7 @@ class TransactionCreateView(CreateView):
         return super().form_valid(form)
 
 
-class TransactionUpdateView(UpdateView):
+class TransactionUpdateView(CounterpartSuggestionMixin, UpdateView):
     """画面4 取引編集（基本設計書5.3.3節）。"""
 
     model = Transaction
