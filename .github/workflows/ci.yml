@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "webapp/**"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    # 本番と同じ MySQL 8.0 でテストする（テスト用 DB の作成権限が必要なため root を使う）
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: kakeibo
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -ptest"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      SECRET_KEY: test
+      GOOGLE_OAUTH_CLIENT_ID: test
+      GOOGLE_OAUTH_CLIENT_SECRET: test
+      DB_NAME: kakeibo
+      DB_USER: root
+      DB_PASSWORD: test
+      DB_HOST: 127.0.0.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libmysqlclient-dev pkg-config
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: webapp/.python-version
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: Django test
+        run: uv run python manage.py test
