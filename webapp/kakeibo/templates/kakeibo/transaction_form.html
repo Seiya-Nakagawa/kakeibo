@@ -9,6 +9,11 @@
     {% csrf_token %}
     {{ form.non_field_errors }}
     {{ form.as_p }}
+    <datalist id="counterpart-suggestions">
+      {% for counterpart in counterpart_suggestions %}
+        <option value="{{ counterpart }}"></option>
+      {% endfor %}
+    </datalist>
     <button type="submit">保存</button>
   </form>
 
@@ -26,5 +31,8 @@
       el.addEventListener("change", toggleTransactionTypeFields);
     });
     toggleTransactionTypeFields();
+
+    // 店舗名・収入元の予測変換: 過去の取引の店舗名を候補として紐づける（基本設計書5.3.3節）。
+    document.getElementById("id_counterpart").setAttribute("list", "counterpart-suggestions");
   </script>
 {% endblock %}

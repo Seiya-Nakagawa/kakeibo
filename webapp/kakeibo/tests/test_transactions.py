@@ -24,6 +24,31 @@ class TransactionViewTestBase(TestCase):
 
 
 class TransactionCreateViewTests(TransactionViewTestBase):
+    def test_form_suggests_counterparts_by_frequency_excluding_deleted(self):
+        def create(counterpart, is_deleted=False):
+            Transaction.objects.create(
+                transaction_type=Transaction.TransactionType.EXPENSE,
+                transaction_date="2026-08-01",
+                amount=100,
+                counterpart=counterpart,
+                payment_method=self.payment_method,
+                source=Transaction.Source.MANUAL,
+                created_by=self.user,
+                is_deleted=is_deleted,
+            )
+
+        create("コンビニ")
+        create("スーパー")
+        create("スーパー")
+        create("削除済み店", is_deleted=True)
+
+        response = self.client.get(reverse("transaction-create"))
+        self.assertEqual(
+            response.context["counterpart_suggestions"], ["スーパー", "コンビニ"]
+        )
+        self.assertContains(response, '<option value="スーパー">')
+        self.assertNotContains(response, "削除済み店")
+
     def test_create_expense_requires_payment_method(self):
         response = self.client.post(
             reverse("transaction-create"),
