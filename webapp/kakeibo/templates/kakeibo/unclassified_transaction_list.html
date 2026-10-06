@@ -5,34 +5,29 @@
 {% block content %}
   <h1>未分類取引一覧</h1>
 
-  <table>
-    <thead>
-      <tr>
-        <th>日付</th>
-        <th>店舗名</th>
-        <th>金額</th>
-        <th>決済手段</th>
-        <th>カテゴリ割当</th>
-      </tr>
-    </thead>
-    <tbody>
+  <section class="card" aria-label="未分類の取引">
+    <ul class="tx-list">
       {% for transaction in transactions %}
-        <tr>
-          <td>{{ transaction.transaction_date }}</td>
-          <td>{{ transaction.counterpart }}</td>
-          <td>{{ transaction.amount }}</td>
-          <td>{{ transaction.payment_method }}</td>
-          <td>
-            <form method="post" action="{% url 'transaction-assign-category' transaction.pk %}">
-              {% csrf_token %}
-              {{ assign_form.category }}
-              <button type="submit">割当</button>
-            </form>
-          </td>
-        </tr>
+        <li class="tx-item">
+          <div class="tx-main">
+            <span class="tx-title">
+              {{ transaction.counterpart }}
+              <span class="tx-meta">
+                <span class="num">{{ transaction.transaction_date|date:"n/j" }}</span>
+                <span>{{ transaction.payment_method }}</span>
+              </span>
+            </span>
+            <span class="tx-amount num is-expense">−{{ transaction.amount|floatformat:"0g" }}円</span>
+          </div>
+          <form method="post" action="{% url 'transaction-assign-category' transaction.pk %}" class="assign-form">
+            {% csrf_token %}
+            {{ assign_form.category }}
+            <button type="submit" class="btn">割当</button>
+          </form>
+        </li>
       {% empty %}
-        <tr><td colspan="5">未分類の取引はありません。</td></tr>
+        <li class="empty">未分類の取引はありません。</li>
       {% endfor %}
-    </tbody>
-  </table>
+    </ul>
+  </section>
 {% endblock %}
