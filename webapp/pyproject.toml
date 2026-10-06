@@ -26,3 +26,8 @@ extend-exclude = ["*/migrations/*.py"]
 "**/models.py" = ["RUF012"]
 # Django の ModelForm.Meta.widgets も同様に、フォーム定義時にのみ参照される規約上の書き方。
 "**/forms.py" = ["RUF012"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.0",
+]
