@@ -4,7 +4,6 @@ data/
 .clasp.json
 creds.json
 .clasprc.json
-.antigravitycli
 
 # Python / uv
 .venv/
