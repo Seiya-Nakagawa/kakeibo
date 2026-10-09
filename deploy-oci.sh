@@ -22,6 +22,14 @@ remote_scp() {
     scp -i "$SSH_KEY" "${SSH_OPTS[@]}" "$@"
 }
 
+# arm64 向けビルドにはエミュレーション（qemu-user-static の binfmt 登録）が必要。
+# 未登録のまま docker build すると RUN ステップが exec format error で失敗するため、先に検査する。
+if [ "$(uname -m)" != "aarch64" ] && [ ! -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+    echo "linux/arm64 のエミュレーションが登録されていません。次のコマンドで登録してから再実行してください。" >&2
+    echo "  docker run --privileged --rm tonistiigi/binfmt --install arm64" >&2
+    exit 1
+fi
+
 echo "=================================================="
 echo "🚀 [1/5] Dockerイメージをlinux/arm64向けにビルドしています..."
 echo "=================================================="
