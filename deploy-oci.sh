@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# 接続先は環境変数で上書きできる。GitHub Actions からは scripts/deploy_via_bastion.sh が
+# 接続先は環境変数で上書きできる。既定値は ~/.ssh/config のホスト別名とする（公開リポジトリのため IP は書かない）。
+# GitHub Actions からは scripts/deploy_via_bastion.sh が
 # OCI Bastion の Managed SSH Session（プライベート IP・一時鍵・SSH_CONFIG_FILE）を渡して呼び出す。
-SSH_HOST="${SSH_HOST:-217.142.230.83}"
+SSH_HOST="${SSH_HOST:-oci-server}"
 SSH_USER="${SSH_USER:-seiya}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 SSH_TARGET="${SSH_USER}@${SSH_HOST}"
