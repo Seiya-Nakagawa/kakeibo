@@ -16,8 +16,6 @@ graph TD
         Gmail --> GAS_AUTO[GAS 自動取込\n時間トリガー・日次]
         GAS_AUTO --> Parser[メールパース]
         Parser --> Cat[カテゴリ判定]
-        Cat -->|ルール未ヒット| Gemini(Gemini API)
-        Gemini --> Cat
     end
 
     subgraph 固定費登録
@@ -41,9 +39,7 @@ graph TD
 | プラットフォーム | Google Apps Script | 実行環境（無料） |
 | ストレージ | Google スプレッドシート | 家計簿本体 |
 | メール | GmailApp | 決済通知メール取得 |
-| AI | Gemini API（無料枠） | カテゴリ自動判定 |
 | Web | GAS HtmlService | 手動入力 Web 画面 |
-| HTTP通信 | UrlFetchApp | Gemini API リクエスト |
 
 ## 2. スプレッドシート設計
 
@@ -61,11 +57,6 @@ graph TD
 | F | メモ | String | 任意メモ |
 | G | 登録方法 | String | `auto` / `fixed` / `manual` |
 | H | 重複排除キー | String | SHA-256 ハッシュ（非表示列） |
-
-**セルの書式ルール**:
-
-- E列（カテゴリ）のセルは、Gemini API で判定した場合に背景色を黄色（`#FFF2CC`）で塗る
-- ユーザーが手動修正した場合は背景色をクリア（未実装フェーズではユーザー手動でクリア）
 
 ### 2.2. 月次集計シートのマスターデータ（A〜C列）
 
@@ -93,7 +84,7 @@ graph TD
 | その他 | TRUE |
 | 対象外 | FALSE |
 
-`対象外` は振替・返金など集計に含めたくない取引に使用する。Gemini API および Web アプリの選択肢にも表示される。
+`対象外` は振替・返金など集計に含めたくない取引に使用する。Web アプリの選択肢にも表示される。
 
 ### 2.3. 店舗ルールシート
 
@@ -152,7 +143,7 @@ graph TD
 | `Code.js` | エントリーポイント | `runAutoImport()` |
 | `Config.js` | 設定・定数 | `MAIL_FILTERS`, `COL`, `CAT_COL` など |
 | `Parsers.js` | メールパース | `rakutenPay()`, `rakutenPayOnline()`, `rakutenCard()` |
-| `CategoryHandler.js` | カテゴリ判定 | `getCategory()`, `callGeminiApi()`, `extractShopKeyword()` |
+| `CategoryHandler.js` | カテゴリ判定 | `getCategory()` |
 | `SheetClient.js` | スプレッドシート操作 | `appendTransaction()`, `getCategories()`, `refreshMonthlySummary()`, `compactRawSheet()` |
 | `WebApp.js` | Web アプリ | `doGet()`, `apiAddEntry()` |
 | `appsscript.json` | マニフェスト | スコープ設定 |
@@ -168,7 +159,6 @@ sequenceDiagram
     participant Parser as Parsers.js
     participant Cat as CategoryHandler.js
     participant Sheet as SheetClient.js
-    participant Gemini as Gemini API
 
     Trigger->>Code: runAutoImport()
     Code->>Code: 設定から検索期間を取得
@@ -182,15 +172,8 @@ sequenceDiagram
                 Code->>Parser: parse(body)
                 Parser-->>Code: {date, amount, shop, source}
                 Code->>Cat: getCategory(shop)
-                alt ルール一致
-                    Cat-->>Code: {category, method: "rule"}
-                else ルール未ヒット
-                    Cat->>Gemini: callGeminiApi(shop)
-                    Gemini-->>Cat: category
-                    Cat-->>Code: {category, method: "llm"}
-                end
-                Code->>Sheet: appendTransaction(data, method)
-                Note over Sheet: LLM判定の場合はセル背景色を黄色に設定
+                Cat-->>Code: category（ルール未ヒット時は「その他」）
+                Code->>Sheet: appendTransaction(data)
             end
         end
     end
@@ -207,25 +190,13 @@ function getCategory(shopName) {
   const normalized = normalize(shopName); // 全角→半角、大文字→小文字
   for (const [keyword, category] of rules) {
     if (normalized.includes(normalize(keyword))) {
-      return { category, method: 'rule' };
+      return category;
     }
   }
 
-  // 2. Gemini API にフォールバック
-  const category = callGeminiApi(shopName);
-  return { category, method: 'llm' };
+  // 2. ルール未ヒットの場合は「その他」
+  return 'その他';
 }
-```
-
-**Gemini API プロンプト設計**:
-
-```text
-以下の店舗名を、家計簿のカテゴリに分類してください。
-カテゴリは必ず次のリストから1つだけ選んでください: {カテゴリ一覧}
-
-店舗名: {shopName}
-
-カテゴリ名のみ返答してください。
 ```
 
 ### 4.3. 重複排除
@@ -295,7 +266,6 @@ function getCategory(shopName) {
 
 | プロパティ名 | 内容 |
 | ------------ | ---- |
-| `GEMINI_API_KEY` | Gemini API キー |
 | `SPREADSHEET_ID` | スプレッドシート ID |
 | `SEARCH_TARGET_DAYS_AGO` | 検索対象日数（例: `3`） |
 | `PROCESSED_MESSAGE_IDS` | 処理済みメッセージ ID（JSON 配列文字列） |
@@ -306,4 +276,3 @@ function getCategory(shopName) {
 2. 各シートのヘッダー行を設定する（カラム構成は本ドキュメントの各シート定義を参照）
 3. 月次集計シートの A〜C 列にカテゴリマスタを入力する
 4. GAS エディタの「トリガー」メニューで `runAutoImport` を時間主導型・毎日 AM 7:00 に設定する
-5. スクリプトプロパティに `GEMINI_API_KEY` を設定する

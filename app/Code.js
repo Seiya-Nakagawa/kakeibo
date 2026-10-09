@@ -63,7 +63,7 @@ function runAutoImport() {
           return;
         }
 
-        const { category, method } = getCategory(item.shop);
+        const category = getCategory(item.shop);
         const dedupKey = computeHash_(
           item.date + item.amount + item.shop + filter.source
         );
@@ -78,15 +78,8 @@ function runAutoImport() {
             memo: '',
             method: 'auto',
             dedupKey,
-          },
-          method === 'llm'
+          }
         );
-
-        if (method === 'llm') {
-          const keyword = extractShopKeyword(item.shop);
-          addShopRule(keyword, category);
-          console.log('店舗ルール追加(AI判定): ' + keyword + ' → ' + category);
-        }
 
         console.log('登録完了: ' + item.shop + ' ' + item.amount + '円 [' + category + ']');
       });

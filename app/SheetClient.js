@@ -8,7 +8,6 @@
  *   getCategories()            : カテゴリマスタから一覧取得
  *   getCategoryMasterRows()    : カテゴリマスタを全列取得（予算・集計対象含む）
  *   getShopRules()             : 店舗ルールを取得
- *   addShopRule(shop, cat)     : 店舗ルールを末尾に追加
  *   getRecentTransactions(n)   : 末尾 n 件を取得
  *   deleteTransactionByRow(r)  : 指定行を削除
  *   refreshMonthlySummary()    : 月次集計シートを再構築
@@ -34,9 +33,8 @@ function getSpreadsheet() {
  *   memo     {string}  メモ（任意）
  *   method   {string}  "auto" | "fixed" | "manual"
  *   dedupKey {string}  重複排除キー（SHA-256 ハッシュ）
- * @param {boolean} highlightCategory  true の場合 E 列（カテゴリ）を黄色に塗る
  */
-function appendTransaction(data, highlightCategory) {
+function appendTransaction(data) {
   // 先に空行を詰める
   compactRawSheet();
   
@@ -53,11 +51,6 @@ function appendTransaction(data, highlightCategory) {
     data.dedupKey,
   ];
   sheet.appendRow(row);
-
-  if (highlightCategory) {
-    const lastRow = sheet.getLastRow();
-    sheet.getRange(lastRow, COL.CATEGORY + 1).setBackground(LLM_CELL_COLOR);
-  }
 }
 
 /**
@@ -80,7 +73,7 @@ function isDuplicateHash(hash) {
 
 /**
  * 月次集計シートのA列からカテゴリ名の配列を返す。
- * Gemini API プロンプトや Web アプリの選択肢に使用するため「対象外」含む全件を返す。
+ * Web アプリの選択肢に使用するため「対象外」含む全件を返す。
  *
  * @returns {string[]}
  */
@@ -125,21 +118,6 @@ function getShopRules() {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   return sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-}
-
-/**
- * 店舗ルールシートの末尾に新しいルールを追加する。
- * AI 判定結果を次回以降ルールヒットさせるために使用する。
- *
- * @param {string} shopName  店舗名（キーワードとして登録）
- * @param {string} category  カテゴリ名
- */
-function addShopRule(shopName, category) {
-  const ss = getSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAMES.SHOP_RULES);
-  sheet.appendRow([shopName, category]);
-  const lastRow = sheet.getLastRow();
-  sheet.getRange(lastRow, 1, 1, 2).setBackground(LLM_CELL_COLOR);
 }
 
 /**

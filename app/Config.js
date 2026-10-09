@@ -6,21 +6,13 @@
  * SPREADSHEET_ID のスクリプトプロパティは不要。
  *
  * スクリプトプロパティ（PropertiesService）で管理するキー:
- *   GEMINI_API_KEY : Gemini API キー
- *   ALERT_EMAIL    : エラー通知先メールアドレス
+ *   ALERT_EMAIL : エラー通知先メールアドレス
  *
  * Gmail ラベル運用:
  *   LABEL_UNPROCESSED のラベルを Gmail フィルタで決済通知メールに自動付与しておく。
  *   GAS は未処理ラベルのスレッドを処理し、完了後に処理済みラベルへ付け替える。
  *   これにより SEARCH_TARGET_DAYS_AGO / PROCESSED_MESSAGE_IDS は不要。
  */
-
-/** Gemini API キーをスクリプトプロパティから取得する */
-function getGeminiApiKey() {
-  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-  if (!key) throw new Error('スクリプトプロパティ GEMINI_API_KEY が未設定です。');
-  return key;
-}
 
 /** エラー通知先メールアドレスをスクリプトプロパティから取得する */
 function getAlertEmail() {
@@ -104,6 +96,3 @@ const CAT_COL = {
   BUDGET: 1,
   INCLUDE: 2,
 };
-
-/** カテゴリを Gemini で判定した場合のセル背景色 */
-const LLM_CELL_COLOR = '#FFF2CC';
