@@ -37,7 +37,8 @@ echo "📄 [3/5] Kubernetesマニフェストを適用しています..."
 echo "=================================================="
 # configmap, vault-sync, web, cronjob を適用する。Namespace・Ingress・TLS証明書は
 # 全サービス共有のため基盤側（infra-oci）で管理しており、ここでは適用しない。
-remote_ssh "mkdir -p /tmp/kakeibo-k8s"
+# 過去のデプロイで置かれた削除済みマニフェストを適用しないよう、転送先を毎回作り直す
+remote_ssh "rm -rf /tmp/kakeibo-k8s && mkdir -p /tmp/kakeibo-k8s"
 remote_scp k8s/configmap.yaml k8s/vault-sync.yaml k8s/web.yaml k8s/cronjob-mail-import.yaml "${SSH_TARGET}:/tmp/kakeibo-k8s/"
 remote_ssh "kubectl apply -f /tmp/kakeibo-k8s/"
 
